@@ -1,0 +1,17 @@
+<Application x:Class="OpenBattlefront.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:OpenBattlefront"
+             ShutdownMode="OnMainWindowClose">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Theme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <local:EqualsConverter x:Key="Eq" />
+            <local:MatchToVisibility x:Key="Show" />
+            <local:BoolToVisibility x:Key="Vis" />
+            <local:BoolToVisibility x:Key="NotVis" Invert="True" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

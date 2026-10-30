@@ -1,0 +1,16 @@
+<UserControl x:Class="OpenBattlefront.Views.ServersView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="380">
+        <Border Width="54" Height="54" CornerRadius="27" Background="{StaticResource AccentSoft}">
+            <TextBlock Text="&#xE774;" Style="{StaticResource Glyph}" FontSize="22" Foreground="{StaticResource Accent}" />
+        </Border>
+        <TextBlock Text="Server manager" Style="{StaticResource H2}" HorizontalAlignment="Center" Margin="0,18,0,0" />
+        <TextBlock Style="{StaticResource Body}" TextAlignment="Center" Margin="0,8,0,0"
+                   Text="Host and manage dedicated servers from here: map rotation, bots, tick rate and who's playing." />
+        <Border HorizontalAlignment="Center" Margin="0,20,0,0" CornerRadius="12" Padding="12,4" Background="{StaticResource SurfaceHi}"
+                BorderBrush="{StaticResource Line}" BorderThickness="1">
+            <TextBlock Text="Coming soon" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Accent}" />
+        </Border>
+    </StackPanel>
+</UserControl>
