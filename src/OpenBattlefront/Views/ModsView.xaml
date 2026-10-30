@@ -9,60 +9,105 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid>
-            <StackPanel>
-                <TextBlock Text="Mods" Style="{StaticResource H2}" />
-                <TextBlock Text="Drop a mod folder or .zip anywhere here. Switch one off to keep it without loading it."
-                           Style="{StaticResource Body}" Margin="0,4,0,0" />
-            </StackPanel>
-        </Grid>
+        <StackPanel>
+            <TextBlock Text="Mods" Style="{StaticResource H2}" />
+            <TextBlock Text="Drop a mod folder, .zip, .7z or .rar anywhere here. Switch one off to keep it without loading it."
+                       Style="{StaticResource Body}" Margin="0,4,0,0" />
+        </StackPanel>
 
         <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-4,0,0"
                     Visibility="{Binding CanManage, Converter={StaticResource Vis}}">
             <Button Style="{StaticResource GhostButton}" Content="Add folder" Command="{Binding AddFolderCommand}" Height="32" Padding="12,0" />
-            <Button Style="{StaticResource GhostButton}" Content="Add .zip" Command="{Binding AddZipCommand}" Height="32" Padding="12,0" Margin="6,0,0,0" />
+            <Button Style="{StaticResource GhostButton}" Content="Add archive" Command="{Binding AddZipCommand}" Height="32" Padding="12,0" Margin="6,0,0,0" />
             <Button Style="{StaticResource IconButton}" Content="&#xE838;" Command="{Binding OpenFolderCommand}" ToolTip="Open the AddOn folder" Margin="4,0,0,0" />
         </StackPanel>
 
-        <Grid Grid.Row="1" Margin="0,22,0,0">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding HasItems, Converter={StaticResource Vis}}">
-                <ItemsControl ItemsSource="{Binding Items}" Margin="0,0,8,0">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10"
-                                    Padding="16,0,8,0" Height="54" Margin="0,0,0,8">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Enabled}" VerticalAlignment="Center" ToolTip="Load this mod" />
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Name}" Style="{StaticResource H3}" FontSize="14" />
-                                        <TextBlock Text="{Binding State}" FontSize="12" Foreground="{StaticResource Faint}" Margin="10,1,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Button Style="{StaticResource IconButton}" Content="&#xE838;" Command="{Binding OpenCommand}" ToolTip="Open folder" />
-                                        <Button Style="{StaticResource IconButton}" Content="&#xE74D;" Command="{Binding RemoveCommand}" ToolTip="Remove" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+        <Grid Grid.Row="1" Margin="0,20,0,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding CanManage, Converter={StaticResource Vis}}">
+                <StackPanel Margin="0,0,8,0">
+
+                    <!-- Essential mods: fetched from their authors' ModDB pages -->
+                    <TextBlock Text="ESSENTIAL MODS" Style="{StaticResource Caption}" Margin="2,0,0,8" />
+                    <ItemsControl ItemsSource="{Binding Essentials}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10"
+                                        Padding="16,12,12,12" Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Style="{StaticResource H3}" FontSize="14">
+                                                <Run Text="{Binding Name, Mode=OneWay}" />
+                                                <Run Text="{Binding Byline, Mode=OneWay}" FontSize="12" FontWeight="Normal" Foreground="{StaticResource Faint}" />
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding Summary}" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0">
+                                            <Button Style="{StaticResource PrimaryButton}" Height="32" Padding="16,0" Command="{Binding GetCommand}"
+                                                    Visibility="{Binding CanGet, Converter={StaticResource Vis}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE896;" Style="{StaticResource Glyph}" FontSize="12" />
+                                                    <TextBlock Text="Get" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                            <StackPanel Orientation="Horizontal" Visibility="{Binding IsInstalled, Converter={StaticResource Vis}}">
+                                                <TextBlock Text="&#xE73E;" Style="{StaticResource Glyph}" FontSize="12" Foreground="{StaticResource Success}" />
+                                                <TextBlock Text="Installed" FontSize="12.5" Foreground="{StaticResource Muted}" Margin="8,0,4,0" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <Border CornerRadius="11" Padding="10,3" Background="{StaticResource SurfaceHi}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                                                    Visibility="{Binding IsComing, Converter={StaticResource Vis}}" ToolTip="{Binding Note}">
+                                                <TextBlock Text="After 1.3 support" FontSize="11.5" Foreground="{StaticResource Faint}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- What's installed -->
+                    <TextBlock Text="INSTALLED" Style="{StaticResource Caption}" Margin="2,14,0,8" />
+                    <ItemsControl ItemsSource="{Binding Items}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10"
+                                        Padding="16,0,8,0" Height="54" Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Enabled}" VerticalAlignment="Center" ToolTip="Load this mod" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" Style="{StaticResource H3}" FontSize="14" />
+                                            <TextBlock Text="{Binding State}" FontSize="12" Foreground="{StaticResource Faint}" Margin="10,1,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Style="{StaticResource IconButton}" Content="&#xE838;" Command="{Binding OpenCommand}" ToolTip="Open folder" />
+                                            <Button Style="{StaticResource IconButton}" Content="&#xE74D;" Command="{Binding RemoveCommand}" ToolTip="Remove" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16,14"
+                            Visibility="{Binding IsEmpty, Converter={StaticResource Vis}}">
+                        <TextBlock Text="No mods yet. Drop a mod folder or archive here; a mod folder has an addme.script file in it."
+                                   FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+                    </Border>
+                </StackPanel>
             </ScrollViewer>
 
-            <!-- Empty, or not imported yet -->
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding IsEmpty, Converter={StaticResource Vis}}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding CanManage, Converter={StaticResource NotVis}}">
                 <Border Width="54" Height="54" CornerRadius="27" Background="{StaticResource AccentSoft}">
                     <TextBlock Text="&#xEA86;" Style="{StaticResource Glyph}" FontSize="22" Foreground="{StaticResource Accent}" />
                 </Border>
-                <TextBlock Text="No mods yet" Style="{StaticResource H3}" HorizontalAlignment="Center" Margin="0,16,0,0" />
-                <TextBlock Text="Drop a mod here. A mod folder has an addme.script file in it." Style="{StaticResource Body}" HorizontalAlignment="Center" Margin="0,4,0,0" />
-            </StackPanel>
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding CanManage, Converter={StaticResource NotVis}}">
-                <TextBlock Text="Import your game first" Style="{StaticResource H3}" HorizontalAlignment="Center" />
+                <TextBlock Text="Import your game first" Style="{StaticResource H3}" HorizontalAlignment="Center" Margin="0,16,0,0" />
                 <TextBlock Text="Mods are added to OpenBattlefront's copy, so start on the Play page." Style="{StaticResource Body}" HorizontalAlignment="Center" Margin="0,4,0,0" />
             </StackPanel>
 
@@ -71,6 +116,6 @@
         </Grid>
 
         <TextBlock Grid.Row="2" Style="{StaticResource Caption}" FontWeight="Normal" Margin="0,12,0,0"
-                   Text="Mods that need the unofficial 1.3 patch don't work yet. Built-in support for them is next." />
+                   Text="Mods that need the unofficial 1.3 patch don't work fully yet. Built-in support for them is next; no patch needed." />
     </Grid>
 </UserControl>

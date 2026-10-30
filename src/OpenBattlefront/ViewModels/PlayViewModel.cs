@@ -79,6 +79,18 @@ public sealed class PlayViewModel : ObservableObject
     public bool ImportProfiles { get => _importProfiles; set => Set(ref _importProfiles, value); }
     public bool ImportMods { get => _importMods; set => Set(ref _importMods, value); }
 
+    public bool WantEssentials
+    {
+        get => Setup.State.EssentialMods;
+        set
+        {
+            Setup.State.EssentialMods = value;
+            Raise();
+        }
+    }
+
+    public string EssentialsLabel => "Get the essential mods: " + string.Join(", ", EssentialMods.All.Where(m => m.Available).Select(m => m.Name));
+
     public string? InvalidMessage { get => _invalidMessage; private set => Set(ref _invalidMessage, value); }
 
     public bool CanResume => !Setup.State.ImportComplete && Setup.State.ImportedFrom != null && Directory.Exists(Setup.State.ImportedFrom);
@@ -222,6 +234,7 @@ public sealed class PlayViewModel : ObservableObject
         if (error != null) _main.ShowError(error, "Import paused. Use Resume to carry on where it stopped.");
         else if (Setup.IsReady) _main.ShowNotice("All set. Have fun out there.");
         if (Stage == PlayStage.NeedsBuild) await LoadLatestAsync();
+        if (error == null) await _main.OfferEssentialsAsync();
     }
 
     public async Task LoadLatestAsync()
@@ -286,6 +299,7 @@ public sealed class PlayViewModel : ObservableObject
         _main.Settings.Refresh();
         if (error != null) _main.ShowError(error);
         else _main.ShowNotice(Setup.IsReady ? $"OpenSWBF2 {Setup.State.InstalledVersion} is installed." : $"OpenSWBF2 {Setup.State.InstalledVersion} is ready; import your game to play.");
+        if (error == null) _ = _main.OfferEssentialsAsync();
     }
 
     public void ChoosePackage()

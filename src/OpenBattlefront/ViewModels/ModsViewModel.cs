@@ -22,6 +22,7 @@ public sealed class ModsViewModel : ObservableObject
     private ModManager Manager => new(Layout);
 
     public ObservableCollection<ModItemViewModel> Items { get; } = new();
+    public ObservableCollection<EssentialModViewModel> Essentials { get; } = new();
     public bool IsEmpty => CanManage && Items.Count == 0;
     public bool HasItems => CanManage && Items.Count > 0;
     public bool CanManage => _main.Setup.State.ImportComplete;
@@ -34,20 +35,25 @@ public sealed class ModsViewModel : ObservableObject
     public void Refresh()
     {
         Items.Clear();
+        Essentials.Clear();
         if (CanManage)
+        {
             foreach (var mod in Manager.List())
                 Items.Add(new ModItemViewModel(this, mod));
+            foreach (var mod in EssentialMods.All)
+                Essentials.Add(new EssentialModViewModel(_main, mod, EssentialMods.IsInstalled(Layout, mod, _main.Setup.State.EssentialFolders)));
+        }
         Raise(nameof(IsEmpty));
         Raise(nameof(HasItems));
         Raise(nameof(CanManage));
     }
 
-    public async Task InstallAsync(IReadOnlyList<string> paths)
+    public async Task<IReadOnlyList<string>> InstallAsync(IReadOnlyList<string> paths)
     {
         if (!CanManage)
         {
             _main.ShowNotice("Import your game first, on the Play page.", error: true);
-            return;
+            return Array.Empty<string>();
         }
         var added = new List<string>();
         var error = await _main.Activity.RunAsync("Adding mods", async (progress, ct) =>
@@ -61,6 +67,7 @@ public sealed class ModsViewModel : ObservableObject
         Refresh();
         if (error != null) _main.ShowError(error);
         else _main.ShowNotice(added.Count == 1 ? $"Added {added[0]}." : $"Added {added.Count} mods: {string.Join(", ", added)}.");
+        return error == null ? added : Array.Empty<string>();
     }
 
     internal void Toggle(ModItemViewModel item, bool enabled)
@@ -99,9 +106,29 @@ public sealed class ModsViewModel : ObservableObject
 
     private void AddZip()
     {
-        var dialog = new OpenFileDialog { Title = "Choose a mod .zip", Filter = "Zip files (*.zip)|*.zip", Multiselect = true };
+        var dialog = new OpenFileDialog { Title = "Choose a mod archive", Filter = "Mod archives (*.zip;*.7z;*.rar)|*.zip;*.7z;*.rar", Multiselect = true };
         if (dialog.ShowDialog() == true) _ = InstallAsync(dialog.FileNames);
     }
+}
+
+public sealed class EssentialModViewModel
+{
+    public EssentialModViewModel(MainViewModel main, CatalogMod mod, bool installed)
+    {
+        Mod = mod;
+        IsInstalled = installed;
+        GetCommand = new RelayCommand(() => _ = main.GetEssentialAsync(mod), () => CanGet && !main.Activity.IsBusy);
+    }
+
+    public CatalogMod Mod { get; }
+    public string Name => Mod.Name;
+    public string Summary => Mod.Summary;
+    public string Byline => $"by {Mod.Author} on ModDB";
+    public bool IsInstalled { get; }
+    public bool CanGet => Mod.Available && !IsInstalled;
+    public bool IsComing => !Mod.Available && !IsInstalled;
+    public string? Note => Mod.Note;
+    public ICommand GetCommand { get; }
 }
 
 public sealed class ModItemViewModel : ObservableObject

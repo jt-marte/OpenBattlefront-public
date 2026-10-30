@@ -11,9 +11,9 @@ $root = $PSScriptRoot
 $out = Join-Path $root 'dist'
 
 $publishArgs = @('publish', (Join-Path $root 'src\OpenBattlefront\OpenBattlefront.csproj'), '-c', 'Release', '-r', 'win-x64',
-    '-p:PublishSingleFile=true', '-p:DebugType=none', '-o', $out, '--nologo')
+    '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:DebugType=none', '-o', $out, '--nologo')
 if ($Small) { $publishArgs += '--self-contained', 'false' }
-else { $publishArgs += '--self-contained', 'true', '-p:EnableCompressionInSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true' }
+else { $publishArgs += '--self-contained', 'true', '-p:EnableCompressionInSingleFile=true' }
 
 & dotnet @publishArgs
 if ($LASTEXITCODE) { throw 'dotnet publish failed.' }

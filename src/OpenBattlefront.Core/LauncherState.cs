@@ -24,6 +24,16 @@ public sealed class LauncherState
     public string ExtraArgs { get; set; } = "";
     public bool MinimiseWhilePlaying { get; set; } = true;
     public bool CheckUpdatesOnStart { get; set; } = true;
+
+    /// <summary>Offer the Essential mods (EssentialMods.All) once the game is set up.</summary>
+    public bool EssentialMods { get; set; } = true;
+
+    /// <summary>The Essential mods were offered once after setup; later they live on the Mods page.</summary>
+    public bool EssentialsOffered { get; set; }
+
+    /// <summary>The AddOn folders each Essential mod installed, by catalog id.</summary>
+    public Dictionary<string, string[]> EssentialFolders { get; set; } = new();
+
     public string UpdateRepo { get; set; } = "jt-marte/OpenSWBF2";
 
     private static readonly JsonSerializerOptions Options = new()

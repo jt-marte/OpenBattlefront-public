@@ -1,0 +1,53 @@
+<Window x:Class="OpenBattlefront.Views.ModDownloadWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="Get mod" Width="1040" Height="700"
+        ResizeMode="NoResize" WindowStyle="None" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
+        FontFamily="{StaticResource Ui}" UseLayoutRounding="True">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="60" ResizeBorderThickness="0" GlassFrameThickness="0,0,0,1" CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="64" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header: what to do, and how the download is going -->
+        <Border Background="{StaticResource Sidebar}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
+            <Grid Margin="20,0,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Border Width="34" Height="34" CornerRadius="17" Background="{StaticResource AccentSoft}" VerticalAlignment="Center">
+                    <TextBlock Text="&#xE896;" Style="{StaticResource Glyph}" FontSize="15" Foreground="{StaticResource Accent}" />
+                </Border>
+                <StackPanel Grid.Column="1" Margin="14,0,16,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="ModName" Style="{StaticResource H3}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="Hint" FontSize="12" Foreground="{StaticResource Muted}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"
+                               Text="Click the download button on the page. OpenBattlefront installs it for you." />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Width="190" VerticalAlignment="Center" Margin="0,0,14,0" x:Name="ProgressArea" Visibility="Collapsed">
+                    <TextBlock x:Name="ProgressText" FontSize="12" Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis" />
+                    <ProgressBar x:Name="Progress" Style="{StaticResource Thin}" Maximum="1" Margin="0,6,0,0" IsIndeterminate="True" />
+                </StackPanel>
+                <Button Grid.Column="3" Style="{StaticResource CloseButton}" Content="&#xE8BB;" Height="64" Width="54" Click="OnClose" ToolTip="Close"
+                        WindowChrome.IsHitTestVisibleInChrome="True" />
+            </Grid>
+        </Border>
+
+        <wv2:WebView2 x:Name="Web" Grid.Row="1" DefaultBackgroundColor="#0A0D14" Visibility="Hidden" />
+
+        <StackPanel x:Name="Loading" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Width="260" IsHitTestVisible="False">
+            <TextBlock Text="Opening ModDB…" Style="{StaticResource H3}" HorizontalAlignment="Center" />
+            <ProgressBar Style="{StaticResource Thin}" IsIndeterminate="True" Margin="0,14,0,0" />
+        </StackPanel>
+    </Grid>
+</Window>

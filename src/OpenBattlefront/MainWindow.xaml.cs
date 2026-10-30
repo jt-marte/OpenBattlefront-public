@@ -14,6 +14,7 @@ public partial class MainWindow : Window
         {
             if (e.NewValue is MainViewModel main)
             {
+                main.DownloadMod = mod => Views.ModDownloadWindow.Show(this, mod, main.Setup.Layout);
                 main.MinimiseRequested += (_, _) => WindowState = WindowState.Minimized;
                 main.RestoreRequested += (_, _) =>
                 {
@@ -31,7 +32,7 @@ public partial class MainWindow : Window
         // Windows 11: dark frame, rounded corners and a hairline border in the theme's colour.
         // Older Windows ignores these.
         var hwnd = new WindowInteropHelper(this).Handle;
-        int dark = 1, round = 2, border = 0x00332722; // COLORREF 0x00BBGGRR for #222733
+        int dark = 1, round = 2, border = 0x003B2A21; // COLORREF 0x00BBGGRR for #212A3B
         DwmSetWindowAttribute(hwnd, 20, ref dark, sizeof(int));
         DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
         DwmSetWindowAttribute(hwnd, 34, ref border, sizeof(int));

@@ -135,6 +135,45 @@ public sealed class MainViewModel : ObservableObject
         confirm?.TrySetResult(result);
     }
 
+    /// <summary>Opens the in-app download window for a catalog mod and returns the archive it
+    /// caught, or null. Set by the window layer.</summary>
+    public Func<CatalogMod, string?>? DownloadMod { get; set; }
+
+    public async Task GetEssentialAsync(CatalogMod mod)
+    {
+        if (DownloadMod == null || Activity.IsBusy) return;
+        string? file = DownloadMod(mod);
+        if (file == null) return;
+        try
+        {
+            var added = await Mods.InstallAsync(new[] { file });
+            if (added.Count > 0)
+            {
+                Setup.State.EssentialFolders[mod.Id] = added.ToArray();
+                Setup.Save();
+                Mods.Refresh();
+                ShowNotice($"{mod.Name} is installed. It shows up in Instant Action.");
+            }
+        }
+        finally
+        {
+            try { File.Delete(file); }
+            catch (IOException) { }
+        }
+    }
+
+    /// <summary>Right after the first setup, fetch the Essential mods the player kept ticked.
+    /// It happens once; after that they are on the Mods page.</summary>
+    public async Task OfferEssentialsAsync()
+    {
+        var state = Setup.State;
+        if (!state.EssentialMods || state.EssentialsOffered || !Setup.IsReady) return;
+        state.EssentialsOffered = true;
+        Setup.Save();
+        foreach (var mod in EssentialMods.Missing(Setup.Layout, state.EssentialFolders).ToList())
+            await GetEssentialAsync(mod);
+    }
+
     public async Task StartAsync()
     {
         Play.Refresh();

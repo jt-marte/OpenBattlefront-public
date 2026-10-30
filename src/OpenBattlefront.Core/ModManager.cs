@@ -1,5 +1,3 @@
-using System.IO.Compression;
-
 namespace OpenBattlefront.Core;
 
 public sealed record ModInfo(string Name, string Path, bool Enabled);
@@ -52,10 +50,10 @@ public sealed class ModManager
             string searchIn = path;
             if (File.Exists(path))
             {
-                if (!path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException("Only folders and .zip files can be added. Extract other archives first.");
+                if (!Archives.IsArchive(path))
+                    throw new InvalidDataException("Only folders and .zip, .7z or .rar files can be added. Run installers yourself, or extract them first.");
                 extracted = Path.Combine(_layout.Temp, "mod-" + Guid.NewGuid().ToString("N"));
-                ZipFile.ExtractToDirectory(path, extracted);
+                Archives.Extract(path, extracted);
                 searchIn = extracted;
             }
 
@@ -66,7 +64,7 @@ public sealed class ModManager
             var added = new List<string>();
             foreach (string root in roots)
             {
-                string name = root == extracted ? Path.GetFileNameWithoutExtension(path) : Path.GetFileName(root);
+                string name = root == extracted ? ArchiveName(path) : Path.GetFileName(root);
                 if (Directory.Exists(Path.Combine(_layout.AddOn, name)) || Directory.Exists(Path.Combine(_layout.AddOnDisabled, name)))
                     throw new IOException($"A mod named {name} is already installed. Remove it first to replace it.");
                 CopyDirectory(root, Path.Combine(_layout.AddOn, name));
@@ -78,6 +76,15 @@ public sealed class ModManager
         {
             if (extracted != null && Directory.Exists(extracted)) Directory.Delete(extracted, recursive: true);
         }
+    }
+
+    private static string ArchiveName(string path)
+    {
+        string name = Path.GetFileName(path);
+        foreach (string ext in new[] { ".tar.gz", ".tar.xz", ".tar.bz2" })
+            if (name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
+                return name[..^ext.Length];
+        return Path.GetFileNameWithoutExtension(name);
     }
 
     public ModInfo SetEnabled(ModInfo mod, bool enabled)
