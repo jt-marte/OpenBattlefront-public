@@ -24,16 +24,9 @@ public static class EssentialMods
             "https://www.moddb.com/mods/xbox-dlc-content-for-pc/downloads/xbox-dlc-and-title-update-content-for-pc",
             new[] { "DLC_XBOX", "UPDATE_XBOX" },
             Available: true),
-        // These two need the 1.3-style mod support built into OpenSWBF2 first.
-        new CatalogMod(
-            "remaster",
-            "Battlefront II Remaster",
-            "HD menus, widescreen fixes, more eras and game modes, AI heroes everywhere.",
-            "Anakin",
-            "https://www.moddb.com/mods/star-wars-battlefront-ii-full-hd-interface/downloads",
-            new[] { "Remaster" },
-            Available: false,
-            Note: "Coming with built-in 1.3-style mod support"),
+        // Needs the 1.3-style mod support built into OpenSWBF2 first. (The Remaster is not
+        // offered: it replaces OpenSWBF2's own menus, and its AI heroes and sound fixes are
+        // coming to OpenSWBF2 as built-in options.)
         new CatalogMod(
             "conversion-pack",
             "Battlefront Conversion Pack",
