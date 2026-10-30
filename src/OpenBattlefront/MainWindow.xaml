@@ -41,7 +41,7 @@
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="10,0,0,30">
                     <Grid Width="22" Height="22">
                         <Ellipse Width="18" Height="18" Stroke="{StaticResource Accent}" StrokeThickness="2" />
-                        <Ellipse Width="7" Height="7" Fill="{StaticResource Accent}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,0,0" />
+                        <Ellipse Width="7" Height="7" Fill="{StaticResource Text}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,0,0" />
                     </Grid>
                     <TextBlock Text="OpenBattlefront" FontSize="15" FontWeight="SemiBold" Margin="11,0,0,1" VerticalAlignment="Center" />
                 </StackPanel>

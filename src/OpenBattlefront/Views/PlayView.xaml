@@ -8,8 +8,8 @@
         <Rectangle IsHitTestVisible="False">
             <Rectangle.Fill>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                    <GradientStop Color="#0F121A" Offset="0" />
-                    <GradientStop Color="#0B0D12" Offset="1" />
+                    <GradientStop Color="#0E1424" Offset="0" />
+                    <GradientStop Color="#0A0D14" Offset="1" />
                 </LinearGradientBrush>
             </Rectangle.Fill>
         </Rectangle>
@@ -17,8 +17,8 @@
         <Ellipse Width="640" Height="640" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-330,-250,0" IsHitTestVisible="False">
             <Ellipse.Fill>
                 <RadialGradientBrush>
-                    <GradientStop Color="#2EF2B544" Offset="0" />
-                    <GradientStop Color="#00F2B544" Offset="1" />
+                    <GradientStop Color="#333B7DED" Offset="0" />
+                    <GradientStop Color="#003B7DED" Offset="1" />
                 </RadialGradientBrush>
             </Ellipse.Fill>
         </Ellipse>
@@ -26,8 +26,8 @@
             <Ellipse Canvas.Left="200" Canvas.Top="440" Width="1420" Height="1420" StrokeThickness="10" Opacity="0.55">
                 <Ellipse.Stroke>
                     <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0">
-                        <GradientStop Color="#00F2B544" Offset="0.12" />
-                        <GradientStop Color="#99F2B544" Offset="0.5" />
+                        <GradientStop Color="#003B7DED" Offset="0.12" />
+                        <GradientStop Color="#993B7DED" Offset="0.5" />
                     </LinearGradientBrush>
                 </Ellipse.Stroke>
                 <Ellipse.Effect>
@@ -37,14 +37,14 @@
             <Ellipse Canvas.Left="200" Canvas.Top="440" Width="1420" Height="1420" StrokeThickness="1.2">
                 <Ellipse.Fill>
                     <RadialGradientBrush Center="0.5,0.25" GradientOrigin="0.5,0" RadiusX="0.7" RadiusY="0.7">
-                        <GradientStop Color="#151A24" Offset="0" />
-                        <GradientStop Color="#0B0D12" Offset="0.6" />
+                        <GradientStop Color="#131B2C" Offset="0" />
+                        <GradientStop Color="#0A0D14" Offset="0.6" />
                     </RadialGradientBrush>
                 </Ellipse.Fill>
                 <Ellipse.Stroke>
                     <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0">
-                        <GradientStop Color="#00F7C866" Offset="0.15" />
-                        <GradientStop Color="#E6F7C866" Offset="0.5" />
+                        <GradientStop Color="#005B95F2" Offset="0.15" />
+                        <GradientStop Color="#E67AAAF5" Offset="0.5" />
                     </LinearGradientBrush>
                 </Ellipse.Stroke>
             </Ellipse>
@@ -56,7 +56,7 @@
             <!-- Ready: the big button -->
             <Grid Visibility="{Binding Stage, Converter={StaticResource Show}, ConverterParameter=Ready}">
                 <Border HorizontalAlignment="Right" VerticalAlignment="Top" CornerRadius="17" Padding="14,0,6,0" Height="34"
-                        Background="#CC151922" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                        Background="#CC141B2A" BorderBrush="{StaticResource Line}" BorderThickness="1"
                         Visibility="{Binding UpdateAvailable, Converter={StaticResource Vis}}">
                     <StackPanel Orientation="Horizontal">
                         <Ellipse Width="7" Height="7" Fill="{StaticResource Accent}" VerticalAlignment="Center" />
@@ -95,14 +95,14 @@
             <StackPanel Width="470" HorizontalAlignment="Center" VerticalAlignment="Center"
                         Visibility="{Binding Stage, Converter={StaticResource Show}, ConverterParameter=Welcome}">
                 <Grid>
-                    <Rectangle RadiusX="16" RadiusY="16" StrokeDashArray="5 4" StrokeThickness="1.5" Fill="#B30E1118">
+                    <Rectangle RadiusX="16" RadiusY="16" StrokeDashArray="5 4" StrokeThickness="1.5" Fill="#B30D1220">
                         <Rectangle.Style>
                             <Style TargetType="Rectangle">
-                                <Setter Property="Stroke" Value="#363D4D" />
+                                <Setter Property="Stroke" Value="#33405A" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding DragHover}" Value="True">
                                         <Setter Property="Stroke" Value="{StaticResource Accent}" />
-                                        <Setter Property="Fill" Value="#1AF2B544" />
+                                        <Setter Property="Fill" Value="#1A3B7DED" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>

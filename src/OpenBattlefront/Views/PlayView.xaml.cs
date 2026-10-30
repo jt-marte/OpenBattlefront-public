@@ -25,12 +25,12 @@ public partial class PlayView : UserControl
         for (int i = 0; i < 90; i++)
         {
             double size = random.NextDouble() < 0.12 ? 2.2 : 1.2;
-            bool warm = random.NextDouble() < 0.15;
+            bool blue = random.NextDouble() < 0.2;
             var star = new Ellipse
             {
                 Width = size,
                 Height = size,
-                Fill = new SolidColorBrush(warm ? Color.FromRgb(0xF7, 0xD9, 0x9A) : Color.FromRgb(0xDD, 0xE4, 0xF0)),
+                Fill = new SolidColorBrush(blue ? Color.FromRgb(0x9F, 0xC2, 0xFF) : Color.FromRgb(0xE4, 0xEA, 0xF5)),
                 Opacity = 0.15 + random.NextDouble() * 0.5,
             };
             Canvas.SetLeft(star, random.NextDouble() * width);
