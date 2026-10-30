@@ -135,7 +135,7 @@ public class ImporterTests
     public void Copy_filter(string relative, bool copy) => Assert.Equal(copy, Importer.ShouldCopyDataFile(relative));
 
     [Fact]
-    public async Task Copies_data_stock_lvls_profiles_and_mods_then_resumes()
+    public async Task Copies_data_stock_lvls_and_mods_but_never_profiles_then_resumes()
     {
         using var temp = new TempDir();
         var (gameData, _) = temp.FakeGame();
@@ -151,7 +151,7 @@ public class ImporterTests
         Assert.True(File.Exists(Path.Combine(layout.LvlDir, "sound", "gal.lvl")));
         Assert.False(File.Exists(Path.Combine(layout.LvlDir, "shell.lvl")));
         Assert.Equal("shell stock", File.ReadAllText(Path.Combine(layout.StockLvlDir, "shell.lvl")));
-        Assert.Equal("my profile", File.ReadAllText(Path.Combine(layout.SaveGames, "Jt.profile")));
+        Assert.False(Directory.Exists(layout.SaveGames)); // a clean slate: no profiles or saves
         Assert.True(File.Exists(Path.Combine(layout.AddOn, "ABC", "addme.script")));
         Assert.False(File.Exists(Path.Combine(layout.Game, "BattlefrontII.exe")));
         Assert.Empty(Directory.GetFiles(layout.Root, "*.partial", SearchOption.AllDirectories));
@@ -164,31 +164,18 @@ public class ImporterTests
     }
 
     [Fact]
-    public async Task Never_overwrites_a_profile()
-    {
-        using var temp = new TempDir();
-        var (gameData, _) = temp.FakeGame();
-        temp.File("Game Root\\GameData\\SaveGames\\Jt.profile", "old");
-        var layout = new InstallLayout(temp.Sub("Launcher"));
-        temp.File("Launcher\\Game\\SaveGames\\Jt.profile", "played since");
-
-        await Importer.CopyAsync(Importer.Plan(gameData, layout, new ImportOptions()), null, CancellationToken.None);
-        Assert.Equal("played since", File.ReadAllText(Path.Combine(layout.SaveGames, "Jt.profile")));
-    }
-
-    [Fact]
-    public void Options_leave_out_profiles_and_mods()
+    public void Options_leave_out_mods()
     {
         using var temp = new TempDir();
         var (gameData, _) = temp.FakeGame();
         temp.File("Game Root\\GameData\\SaveGames\\Jt.profile");
         temp.File("Game Root\\GameData\\addon\\ABC\\addme.script");
-        var plan = Importer.Plan(gameData, new InstallLayout(temp.Sub("L")), new ImportOptions(Profiles: false, Mods: false));
+        var plan = Importer.Plan(gameData, new InstallLayout(temp.Sub("L")), new ImportOptions(Mods: false));
         Assert.DoesNotContain(plan.Items, i => i.Display.StartsWith("SaveGames") || i.Display.StartsWith("AddOn"));
     }
 
     [Fact]
-    public void Preview_counts_mods_and_profiles()
+    public void Preview_counts_mods()
     {
         using var temp = new TempDir();
         var (gameData, _) = temp.FakeGame();
@@ -198,7 +185,6 @@ public class ImporterTests
         temp.File("Game Root\\GameData\\addon\\XYZ\\addme.script");
         var preview = Importer.Preview(gameData);
         Assert.Equal(2, preview.ModCount);
-        Assert.Equal(2, preview.ProfileCount);
         Assert.Equal("coresound".Length, preview.DataBytes);
     }
 }

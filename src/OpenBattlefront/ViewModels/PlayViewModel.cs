@@ -16,7 +16,6 @@ public sealed class PlayViewModel : ObservableObject
     private string? _source;
     private ImportPreview? _preview;
     private long _free;
-    private bool _importProfiles = true;
     private bool _importMods = true;
     private string? _invalidMessage;
     private ReleaseInfo? _latest;
@@ -72,11 +71,8 @@ public sealed class PlayViewModel : ObservableObject
     public string? SourcePath => _source;
     public string ReviewSize => _preview == null ? "" :
         $"{Sizes.Format(_preview.DataBytes)} to copy  ·  {Sizes.Format(_free)} free on {Path.GetPathRoot(Setup.Layout.Root)?.TrimEnd('\\')}";
-    public bool HasProfiles => _preview?.ProfileCount > 0;
-    public string ProfilesLabel => _preview?.ProfileCount == 1 ? "Bring my profile" : $"Bring my {_preview?.ProfileCount} profiles";
     public bool HasMods => _preview?.ModCount > 0;
     public string ModsLabel => $"Bring my mods ({_preview?.ModCount}, {Sizes.Format(_preview?.ModBytes ?? 0)})";
-    public bool ImportProfiles { get => _importProfiles; set => Set(ref _importProfiles, value); }
     public bool ImportMods { get => _importMods; set => Set(ref _importMods, value); }
 
     public bool WantEssentials
@@ -191,9 +187,8 @@ public sealed class PlayViewModel : ObservableObject
             _preview = await Task.Run(() => Importer.Preview(gameData));
             _free = Importer.FreeBytes(Setup.Layout.Root);
             _source = gameData;
-            ImportProfiles = _preview.ProfileCount > 0;
             ImportMods = _preview.ModCount > 0;
-            foreach (string name in new[] { nameof(SourcePath), nameof(ReviewSize), nameof(HasProfiles), nameof(ProfilesLabel), nameof(HasMods), nameof(ModsLabel) })
+            foreach (string name in new[] { nameof(SourcePath), nameof(ReviewSize), nameof(HasMods), nameof(ModsLabel) })
                 Raise(name);
             Stage = PlayStage.Review;
         }
@@ -219,7 +214,7 @@ public sealed class PlayViewModel : ObservableObject
     private async Task ImportAsync()
     {
         string source = _source!;
-        var options = new ImportOptions(ImportProfiles, ImportMods);
+        var options = new ImportOptions(ImportMods);
         var error = await Activity.RunAsync("Importing", async (progress, ct) =>
         {
             await Setup.ImportAsync(source, options, progress, ct);

@@ -4,7 +4,7 @@ namespace OpenBattlefront.Core;
 
 public sealed record ImportItem(string Source, string Destination, string Display, long Size, DateTime LastWriteUtc, bool Overwrite)
 {
-    /// <summary>Already copied: same size and time, or a file that is never overwritten (a profile).</summary>
+    /// <summary>Already copied: same size and time, or a file that is never overwritten.</summary>
     public bool IsUpToDate()
     {
         var dest = new FileInfo(Destination);
@@ -29,9 +29,11 @@ public sealed class ImportPlan
     public long PendingBytes { get; }
 }
 
-public sealed record ImportOptions(bool Profiles = true, bool Mods = true);
+/// <summary>What else to bring besides the game data. Profiles and saves never come along:
+/// OpenBattlefront starts with a clean slate.</summary>
+public sealed record ImportOptions(bool Mods = true);
 
-public sealed record ImportPreview(long DataBytes, int ModCount, long ModBytes, int ProfileCount);
+public sealed record ImportPreview(long DataBytes, int ModCount, long ModBytes);
 
 /// <summary>
 /// Copies the player's game data into the launcher's Game\ folder. The four core lvls are not
@@ -70,9 +72,7 @@ public static class Importer
         string addon = Path.Combine(gameData, "addon");
         int mods = Directory.Exists(addon) ? ModManager.FindModRoots(addon).Count : 0;
         long modBytes = Files(addon).Sum(f => f.Length);
-        string saves = Path.Combine(gameData, "SaveGames");
-        int profiles = Directory.Exists(saves) ? Directory.GetFiles(saves, "*.profile").Length : 0;
-        return new ImportPreview(dataBytes, mods, modBytes, profiles);
+        return new ImportPreview(dataBytes, mods, modBytes);
     }
 
     public static ImportPlan Plan(string gameData, InstallLayout layout, ImportOptions options)
@@ -85,8 +85,6 @@ public static class Importer
             if (source != null)
                 items.Add(Item(new FileInfo(source), Path.Combine(layout.StockLvlDir, name + ".lvl"), $"stock {name}.lvl", overwrite: true));
         }
-        if (options.Profiles)
-            AddTree(items, Path.Combine(gameData, "SaveGames"), layout.SaveGames, "SaveGames", _ => true, overwrite: false);
         if (options.Mods)
             AddTree(items, Path.Combine(gameData, "addon"), layout.AddOn, "AddOn", _ => true, overwrite: true);
         return new ImportPlan(items);

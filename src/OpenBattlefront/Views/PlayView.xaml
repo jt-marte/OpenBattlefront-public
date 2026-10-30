@@ -167,9 +167,7 @@
                         <TextBlock Text="&#xE896;" Style="{StaticResource Glyph}" FontSize="13" Foreground="{StaticResource Muted}" />
                         <TextBlock Text="{Binding ReviewSize}" FontSize="13" Margin="10,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
-                    <CheckBox Style="{StaticResource Switch}" Content="{Binding ProfilesLabel}" IsChecked="{Binding ImportProfiles}" Margin="0,18,0,0"
-                              Visibility="{Binding HasProfiles, Converter={StaticResource Vis}}" />
-                    <CheckBox Style="{StaticResource Switch}" Content="{Binding ModsLabel}" IsChecked="{Binding ImportMods}" Margin="0,12,0,0"
+                    <CheckBox Style="{StaticResource Switch}" Content="{Binding ModsLabel}" IsChecked="{Binding ImportMods}" Margin="0,18,0,0"
                               Visibility="{Binding HasMods, Converter={StaticResource Vis}}" />
                     <CheckBox Style="{StaticResource Switch}" Content="{Binding EssentialsLabel}" IsChecked="{Binding WantEssentials}" Margin="0,12,0,0" />
                     <StackPanel Orientation="Horizontal" Margin="0,26,0,0">
