@@ -13,6 +13,7 @@
     <Description>Launcher for OpenSWBF2</Description>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <PlatformTarget>x64</PlatformTarget>
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
 
   <ItemGroup>
