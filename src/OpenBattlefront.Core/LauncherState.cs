@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace OpenBattlefront.Core;
 
@@ -32,6 +33,7 @@ public sealed class LauncherState
         PropertyNameCaseInsensitive = true,
     };
 
+    [JsonIgnore]
     public InstallLayout Layout => new(InstallRoot ?? InstallLayout.DefaultRoot);
 
     public static LauncherState Load(string file)

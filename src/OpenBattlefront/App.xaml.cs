@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
 using OpenBattlefront.Core;
@@ -7,6 +9,8 @@ namespace OpenBattlefront;
 
 public partial class App : Application
 {
+    private static Mutex? _single;
+
     public static MainViewModel? Launcher { get; private set; }
 
     /// <summary>
@@ -18,6 +22,15 @@ public partial class App : Application
     {
         base.OnStartup(e);
         DispatcherUnhandledException += OnUnhandled;
+
+        // One launcher at a time: starting it again brings the open one forward.
+        _single = new Mutex(true, "OpenBattlefront.Launcher", out bool first);
+        if (!first && Arg(e.Args, "--screenshot") == null)
+        {
+            ShowRunningLauncher();
+            Shutdown();
+            return;
+        }
 
         string stateFile = Arg(e.Args, "--state") ?? LauncherState.DefaultFile;
         var setup = new GameSetup(LauncherState.Load(stateFile), stateFile, MainViewModel.LauncherVersion);
@@ -34,6 +47,27 @@ public partial class App : Application
         }
         await Launcher.StartAsync();
     }
+
+    private static void ShowRunningLauncher()
+    {
+        using var self = Process.GetCurrentProcess();
+        foreach (var other in Process.GetProcessesByName(self.ProcessName))
+        {
+            using (other)
+            {
+                if (other.Id == self.Id || other.MainWindowHandle == IntPtr.Zero) continue;
+                ShowWindow(other.MainWindowHandle, 9); // SW_RESTORE
+                SetForegroundWindow(other.MainWindowHandle);
+                return;
+            }
+        }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hwnd, int command);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hwnd);
 
     private static string? Arg(string[] args, string name)
     {

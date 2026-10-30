@@ -189,6 +189,7 @@ public class GameLauncherTests
         Assert.Equal("0.1.0", loaded.InstalledVersion);
         Assert.True(loaded.Borderless);
         Assert.True(loaded.ImportComplete);
+        Assert.DoesNotContain("layout", File.ReadAllText(file));
 
         File.WriteAllText(file, "{ broken");
         Assert.Null(LauncherState.Load(file).InstalledVersion);
