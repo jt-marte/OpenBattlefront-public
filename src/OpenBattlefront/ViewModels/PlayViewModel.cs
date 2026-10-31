@@ -32,7 +32,7 @@ public sealed class PlayViewModel : ObservableObject
     public PlayViewModel(MainViewModel main)
     {
         _main = main;
-        Join = new JoinServerViewModel(main, this);
+        JoinServerCommand = new RelayCommand(() => _main.Page = Page.Multiplayer);
         BrowseCommand = new RelayCommand(Browse, () => !Activity.IsBusy);
         ResumeCommand = new RelayCommand(() => _ = HandleDropAsync(Setup.State.ImportedFrom!), () => CanResume && !Activity.IsBusy);
         ImportCommand = new RelayCommand(() => _ = ImportAsync(), () => _source != null && !Activity.IsBusy);
@@ -48,8 +48,8 @@ public sealed class PlayViewModel : ObservableObject
     public ActivityViewModel Activity => _main.Activity;
     private GameSetup Setup => _main.Setup;
 
-    /// <summary>Play > Join a server.</summary>
-    public JoinServerViewModel Join { get; }
+    /// <summary>Play > Join a server: the Multiplayer page.</summary>
+    public ICommand JoinServerCommand { get; }
 
     public bool CanStartGame => Stage == PlayStage.Ready && !IsGameRunning && !Activity.IsBusy;
 
@@ -376,8 +376,9 @@ public sealed class PlayViewModel : ObservableObject
 
     /// <summary>Before the first start: the player's newest profile, or a name they choose for the game
     /// to make one with. False when they cancel.</summary>
-    private async Task<bool> ChoosePlayerNameAsync()
+    public async Task<bool> EnsurePlayerNameAsync()
     {
+        if (Setup.State.PlayerName != null) return true;
         string? name = PlayerProfiles.List(Setup.Layout).FirstOrDefault();
         string suggestion = PlayerProfiles.DefaultName(Setup.Layout, Environment.UserName);
         while (name == null)
@@ -400,12 +401,15 @@ public sealed class PlayViewModel : ObservableObject
         return true;
     }
 
-    /// <param name="join">Opens the game straight into joining that server (Join a server).</param>
-    public async void Launch(JoinTarget? join = null)
+    private async void Launch() => await LaunchAsync();
+
+    /// <param name="join">Opens the game straight into joining that server (Multiplayer).</param>
+    /// <returns>Whether the game started.</returns>
+    public async Task<bool> LaunchAsync(JoinTarget? join = null)
     {
         try
         {
-            if (Setup.State.PlayerName == null && !await ChoosePlayerNameAsync()) return;
+            if (!await EnsurePlayerNameAsync()) return false;
             var game = GameLauncher.Start(Setup.Layout, Setup.State, join);
             _game = game;
             IsGameRunning = true;
@@ -419,10 +423,12 @@ public sealed class PlayViewModel : ObservableObject
                 CommandManager.InvalidateRequerySuggested();
             });
             if (Setup.State.MinimiseWhilePlaying) _main.RequestMinimise();
+            return true;
         }
         catch (Exception e)
         {
             _main.ShowError(e);
+            return false;
         }
     }
 }

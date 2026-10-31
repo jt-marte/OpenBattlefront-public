@@ -12,14 +12,6 @@ public partial class PlayView : UserControl
     {
         InitializeComponent();
         Loaded += (_, _) => DrawStars();
-        AddressBox.IsVisibleChanged += (_, e) =>
-        {
-            if (e.NewValue is true) Dispatcher.BeginInvoke(() =>
-            {
-                AddressBox.Focus();
-                AddressBox.SelectAll();
-            });
-        };
     }
 
     private PlayViewModel? Vm => DataContext as PlayViewModel;

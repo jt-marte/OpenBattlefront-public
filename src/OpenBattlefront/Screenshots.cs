@@ -51,11 +51,11 @@ internal static class Screenshots
         };
         main.ConfirmNoCommand.Execute(null);
         main.DismissNoticeCommand.Execute(null);
-        main.Play.Join.Address = "";
-        main.Play.Join.Open();
+        var multiplayer = main.Multiplayer;
+        multiplayer.Address = "";
+        main.Page = Page.Multiplayer;
         await Settle(300);
-        Save(window, Path.Combine(dir, "6-join.png"));
-        main.Play.Join.IsOpen = false;
+        Save(window, Path.Combine(dir, "6-direct-connect.png"));
 
         ModSyncItem Item(string name, ModSyncAction action, long bytes) =>
             new(new ServerModFolder { Name = name }, action, bytes == 0 ? Array.Empty<ManifestFile>() : new[] { new ManifestFile { Path = "addme.script", Size = bytes } });
@@ -65,9 +65,15 @@ internal static class Screenshots
             Item("DLC_XBOX", ModSyncAction.Update, 12_600_000),
             Item("KOTOR", ModSyncAction.Enable, 0),
         });
-        _ = main.ConfirmAsync("Get the server's mods?", JoinServerViewModel.Describe("Friday Night Battles", plan), $"Download {Sizes.Format(plan.Bytes)} and join");
+        _ = main.ConfirmAsync("Get the server's mods?", MultiplayerViewModel.Describe("Friday Night Battles", plan), $"Download {Sizes.Format(plan.Bytes)} and join");
         await Settle(300);
         Save(window, Path.Combine(dir, "6b-join-mods.png"));
+        main.ConfirmNoCommand.Execute(null);
+
+        multiplayer.ShowSample();
+        await Settle(300);
+        Save(window, Path.Combine(dir, "6c-lobby.png"));
+        multiplayer.ShowConnect();
     }
 
     /// <summary>The Server manager's screens, against the sample map list and a simulated server.</summary>

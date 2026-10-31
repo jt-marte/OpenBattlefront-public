@@ -18,6 +18,9 @@
         <DataTemplate DataType="{x:Type vm:PlayViewModel}">
             <views:PlayView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:MultiplayerViewModel}">
+            <views:MultiplayerView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:ModsViewModel}">
             <views:ModsView />
         </DataTemplate>
@@ -58,6 +61,8 @@
                 <StackPanel>
                     <RadioButton Style="{StaticResource NavItem}" Tag="&#xE768;" Content="Play"
                                  IsChecked="{Binding Page, Converter={StaticResource Eq}, ConverterParameter=Play}" />
+                    <RadioButton Style="{StaticResource NavItem}" Tag="&#xE716;" Content="Multiplayer"
+                                 IsChecked="{Binding Page, Converter={StaticResource Eq}, ConverterParameter=Multiplayer}" />
                     <RadioButton Style="{StaticResource NavItem}" Tag="&#xEA86;" Content="Mods"
                                  IsChecked="{Binding Page, Converter={StaticResource Eq}, ConverterParameter=Mods}" />
                     <RadioButton Style="{StaticResource NavItem}" Tag="&#xE774;" Content="Server manager"

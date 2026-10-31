@@ -157,6 +157,34 @@ public sealed class ModUploadClient
 
     public Task<string> CancelRestartAsync(CancellationToken ct) => RestartStateAsync(HttpMethod.Delete, "admin/restart", ct);
 
+    /// <summary>The game and the launchers' lobby; null when the service has no lobby (an older one).</summary>
+    public async Task<MatchStatus?> StatusAsync(CancellationToken ct)
+    {
+        using var request = ModService.Request(HttpMethod.Get, Server, "status", _password);
+        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        if (!response.IsSuccessStatusCode) throw await ModService.ErrorAsync(response, ct).ConfigureAwait(false);
+        return MatchStatus.Parse(await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
+    }
+
+    /// <summary>Opens every waiting launcher's game into the server's held lobby; the match starts
+    /// once they are in, or after 60 s.</summary>
+    public async Task StartMatchAsync(CancellationToken ct)
+    {
+        using var _ = await SendAsync(HttpMethod.Post, "admin/match?do=start", null, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Holds the next map in the lobby again (/lobby now).</summary>
+    public async Task BackToLobbyAsync(CancellationToken ct)
+    {
+        using var _ = await SendAsync(HttpMethod.Post, "admin/match?do=lobby", null, ct).ConfigureAwait(false);
+    }
+
+    public async Task CancelStartAsync(CancellationToken ct)
+    {
+        using var _ = await SendAsync(HttpMethod.Delete, "admin/match", null, ct).ConfigureAwait(false);
+    }
+
     private async Task<string> RestartStateAsync(HttpMethod method, string path, CancellationToken ct)
     {
         using var response = await SendAsync(method, path, null, ct).ConfigureAwait(false);

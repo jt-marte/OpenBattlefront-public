@@ -32,6 +32,56 @@ internal sealed class FakeModServer : HttpMessageHandler
     public Dictionary<string, byte[]> Uploaded { get; } = new();
     public string RestartState { get; set; } = "none";
 
+    // The launchers' lobby
+    public bool HasLobby { get; set; } = true;
+    public string Phase { get; set; } = "lobby";
+    public string StartState { get; set; } = "none";
+    public Dictionary<string, (string Name, string State, int Progress)> LobbyEntries { get; } = new();
+    public List<string> InGame { get; } = new();
+    public List<string> MatchCalls { get; } = new();
+
+    public string StatusJson(string? token) => JsonSerializer.Serialize(new
+    {
+        schema = 1,
+        server = "Fake server",
+        phase = Phase,
+        map = "BS1g_con",
+        next = "geo1c_con",
+        players = InGame.Count,
+        inGame = InGame,
+        lobby = LobbyEntries.Values.Select(e => new { name = e.Name, state = e.State, progress = e.Progress }),
+        start = StartState,
+        startIn = StartState == "loading" ? 60 : (int?)null,
+        inLobby = token != null && LobbyEntries.ContainsKey(token),
+    });
+
+    private HttpResponseMessage Lobby(string path, HttpRequestMessage request, byte[]? body)
+    {
+        if (path == "status")
+        {
+            string? token = request.RequestUri!.Query.StartsWith("?token=") ? Uri.UnescapeDataString(request.RequestUri.Query["?token=".Length..]) : null;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(StatusJson(token), Encoding.UTF8, "application/json") };
+        }
+        using var doc = JsonDocument.Parse(body!);
+        var root = doc.RootElement;
+        switch (path)
+        {
+            case "lobby/join":
+                string token = Guid.NewGuid().ToString("N");
+                LobbyEntries[token] = (root.GetProperty("name").GetString()!, "downloading", 0);
+                return Json(HttpStatusCode.OK, new { token });
+            case "lobby/update":
+                string key = root.GetProperty("token").GetString()!;
+                if (!LobbyEntries.TryGetValue(key, out var entry)) return Json(HttpStatusCode.NotFound, new { error = "not in the lobby; join again" });
+                LobbyEntries[key] = (entry.Name, root.GetProperty("state").GetString()!, root.GetProperty("progress").GetInt32());
+                return Json(HttpStatusCode.OK, new { ok = true });
+            case "lobby/leave":
+                LobbyEntries.Remove(root.GetProperty("token").GetString()!);
+                return Json(HttpStatusCode.OK, new { ok = true });
+        }
+        return Json(HttpStatusCode.NotFound, new { error = "not found" });
+    }
+
     public void Add(string folder, string path, string content) => Add(folder, path, Encoding.UTF8.GetBytes(content));
 
     public void Add(string folder, string path, byte[] content)
@@ -76,7 +126,23 @@ internal sealed class FakeModServer : HttpMessageHandler
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(ManifestJson(admin), Encoding.UTF8, "application/json") };
         if (path.StartsWith("mods/"))
             return File(path["mods/".Length..], request);
+        if (path == "status" || path.StartsWith("lobby/"))
+        {
+            if (!HasLobby) return Json(HttpStatusCode.NotFound, new { error = "not found" });
+            return Lobby(path, request, body);
+        }
         if (!admin) return Json(HttpStatusCode.Forbidden, new { error = "that needs the admin password" });
+        if (path == "admin/match")
+        {
+            if (!HasLobby) return Json(HttpStatusCode.NotFound, new { error = "not found" });
+            string query = request.RequestUri.Query;
+            if (request.Method == HttpMethod.Delete) StartState = "none";
+            else if (query.Contains("do=start") && Phase != "lobby") return Json(HttpStatusCode.Conflict, new { error = "the match isn't waiting in the lobby" });
+            else if (query.Contains("do=start")) StartState = "loading";
+            else if (query.Contains("do=lobby")) Phase = "lobby";
+            MatchCalls.Add($"{request.Method.Method} {query}");
+            return Json(HttpStatusCode.OK, new { start = StartState });
+        }
         if (path.StartsWith("upload/") && path.EndsWith("/begin")) return Json(HttpStatusCode.OK, new { have = Staged.ToArray() });
         if (path.StartsWith("upload/") && path.EndsWith("/commit")) return Json(HttpStatusCode.OK, new { pending = true });
         if (path.StartsWith("upload/") && request.Method == HttpMethod.Put)

@@ -6,7 +6,7 @@ using OpenBattlefront.Core;
 
 namespace OpenBattlefront.ViewModels;
 
-public enum Page { Play, Mods, Servers, Settings }
+public enum Page { Play, Multiplayer, Mods, Servers, Settings }
 
 public sealed class MainViewModel : ObservableObject
 {
@@ -30,6 +30,7 @@ public sealed class MainViewModel : ObservableObject
             if (e.PropertyName == nameof(ActivityViewModel.IsBusy)) Raise(nameof(ShowFooterActivity));
         };
         Play = new PlayViewModel(this);
+        Multiplayer = new MultiplayerViewModel(this);
         Mods = new ModsViewModel(this);
         Settings = new SettingsViewModel(this);
         Servers = new ServersViewModel(this);
@@ -50,6 +51,7 @@ public sealed class MainViewModel : ObservableObject
     public GameSetup Setup { get; }
     public ActivityViewModel Activity { get; }
     public PlayViewModel Play { get; }
+    public MultiplayerViewModel Multiplayer { get; }
     public ModsViewModel Mods { get; }
     public SettingsViewModel Settings { get; }
     public ServersViewModel Servers { get; }
@@ -70,12 +72,14 @@ public sealed class MainViewModel : ObservableObject
             if (value == Page.Mods) Mods.Refresh();
             if (value == Page.Settings) Settings.Refresh();
             if (value == Page.Play) Play.Refresh();
+            if (value == Page.Multiplayer) Multiplayer.Refresh();
             if (value == Page.Servers) Servers.Refresh();
         }
     }
 
     public object CurrentView => Page switch
     {
+        Page.Multiplayer => Multiplayer,
         Page.Mods => Mods,
         Page.Servers => Servers,
         Page.Settings => Settings,

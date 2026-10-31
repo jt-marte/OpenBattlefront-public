@@ -76,8 +76,8 @@
                                 <TextBlock Text="{Binding PlayLabel}" FontSize="15" FontWeight="Bold" Margin="12,0,0,0" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource GhostButton}" Height="50" Padding="20,0" Margin="10,0,0,0" Command="{Binding Join.OpenCommand}"
-                                ToolTip="Join a server by its address; the launcher gets the server's mods first">
+                        <Button Style="{StaticResource GhostButton}" Height="50" Padding="20,0" Margin="10,0,0,0" Command="{Binding JoinServerCommand}"
+                                ToolTip="Direct Connect: join a server by its address and wait in its lobby">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE774;" Style="{StaticResource Glyph}" FontSize="14" />
                                 <TextBlock Text="Join a server" FontSize="14" FontWeight="SemiBold" Margin="10,0,0,0" VerticalAlignment="Center" />
@@ -251,64 +251,5 @@
             </Grid>
         </StackPanel>
 
-        <!-- Join a server -->
-        <Grid Background="#B3050608" DataContext="{Binding Join}" Visibility="{Binding IsOpen, Converter={StaticResource Vis}}">
-            <Border Style="{StaticResource Card}" Width="440" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24,22" Background="{StaticResource SurfaceHi}">
-                <Border.Effect>
-                    <DropShadowEffect BlurRadius="40" ShadowDepth="10" Opacity="0.5" Color="Black" />
-                </Border.Effect>
-                <StackPanel>
-                    <TextBlock Text="Join a server" Style="{StaticResource H3}" FontSize="17" />
-                    <TextBlock Style="{StaticResource Body}" Margin="0,6,0,16"
-                               Text="Type the server's address. The launcher gets the mods it uses first, then the game opens straight into it." />
-                    <TextBlock Text="ADDRESS" Style="{StaticResource Caption}" Margin="2,0,0,6" />
-                    <TextBox x:Name="AddressBox" Style="{StaticResource Field}" MaxLength="63"
-                             Text="{Binding Address, UpdateSourceTrigger=PropertyChanged}" ToolTip="address:port, such as 203.0.113.5:3658 or myserver.example.com" />
-                    <TextBlock Text="The port is 3658 unless the server says otherwise." FontSize="11.5" Foreground="{StaticResource Faint}" Margin="2,6,0,0" />
-
-                    <StackPanel Visibility="{Binding HasRecent, Converter={StaticResource Vis}}" Margin="0,16,0,0">
-                        <TextBlock Text="RECENT" Style="{StaticResource Caption}" Margin="2,0,0,6" />
-                        <ScrollViewer MaxHeight="168" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding Recent}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,0,0,6">
-                                            <Button Command="{Binding DataContext.PickCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
-                                                    Cursor="Hand" FocusVisualStyle="{StaticResource FocusRing}" HorizontalContentAlignment="Stretch">
-                                                <Button.Template>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1"
-                                                                CornerRadius="9" Padding="14,8,40,8">
-                                                            <ContentPresenter />
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Accent}" />
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Button.Template>
-                                                <StackPanel>
-                                                    <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Text="{Binding Detail}" FontSize="11.5" Foreground="{StaticResource Faint}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
-                                                </StackPanel>
-                                            </Button>
-                                            <Button Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="10" Width="26" Height="26" Margin="0,0,8,0"
-                                                    HorizontalAlignment="Right" VerticalAlignment="Center" ToolTip="Forget this server"
-                                                    Command="{Binding DataContext.ForgetCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </StackPanel>
-
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-                        <Button Style="{StaticResource GhostButton}" Content="Cancel" Command="{Binding CloseCommand}" IsCancel="True" />
-                        <Button Style="{StaticResource PrimaryButton}" Content="Join" Command="{Binding JoinCommand}" Margin="8,0,0,0" IsDefault="True" MinWidth="88" />
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-        </Grid>
     </Grid>
 </UserControl>

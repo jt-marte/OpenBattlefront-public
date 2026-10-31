@@ -85,6 +85,89 @@ public sealed class RemoteAdminViewModel : ObservableObject
         RestartNowCommand = new RelayCommand(() => _ = RestartAsync(whenEmpty: false), () => IsConnected && !Activity.IsBusy);
         RestartWhenEmptyCommand = new RelayCommand(() => _ = RestartAsync(whenEmpty: true), () => IsConnected && !Activity.IsBusy && !RestartWaits);
         CancelRestartCommand = new RelayCommand(() => _ = CancelRestartAsync(), () => IsConnected && !Activity.IsBusy && RestartWaits);
+        StartMatchCommand = new RelayCommand(() => _ = StartMatchAsync(), () => CanStartMatch && !Activity.IsBusy);
+        BackToLobbyCommand = new RelayCommand(() => _ = MatchAsync(c => c.BackToLobbyAsync(default), "The next map waits in the lobby."),
+            () => _status != null && _status.Phase is "warmup" or "playing" or "ended" && !Activity.IsBusy);
+        CancelStartCommand = new RelayCommand(() => _ = MatchAsync(c => c.CancelStartAsync(default), null), () => IsStartLoading);
+        _matchTimer.Tick += (_, _) => _ = RefreshMatchAsync();
+    }
+
+    // The match: the game's phase and the launchers' lobby, read every 3 s while connected
+
+    private readonly System.Windows.Threading.DispatcherTimer _matchTimer = new() { Interval = TimeSpan.FromSeconds(3) };
+    private MatchStatus? _status;
+    private bool _reading;
+    private MapCatalog? _catalog;
+
+    public ICommand StartMatchCommand { get; }
+    public ICommand BackToLobbyCommand { get; }
+    public ICommand CancelStartCommand { get; }
+
+    public bool HasMatch => _status != null;
+    public bool CanStartMatch => _status is { Phase: "lobby", IsLoading: false };
+    public bool IsStartLoading => _status?.IsLoading == true;
+
+    public string MatchText => _status == null ? "" : _status.Phase switch
+    {
+        "lobby" when _status.IsLoading => $"Starting: waiting players' games are opening{(_status.StartIn is { } s ? $" ({s} s)" : "")}",
+        "lobby" => $"In the lobby: {MapTitle(_status.Map)}",
+        "warmup" => $"Warm-up: {MapTitle(_status.Map)}",
+        "playing" => $"Playing: {MapTitle(_status.Map)}",
+        "ended" => "The match is over; the next map is loading",
+        _ => "The server's game isn't answering",
+    };
+
+    public string MatchDetail
+    {
+        get
+        {
+            if (_status == null) return "";
+            int downloading = _status.Lobby.Count(p => p.IsDownloading);
+            return $"{_status.Lobby.Count - downloading} waiting   ·   {downloading} downloading   ·   {_status.Players} in the game";
+        }
+    }
+
+    private string MapTitle(string mission) =>
+        _catalog?.Find(mission) is { } c ? $"{c.MapName} · {c.ModeName}" : mission;
+
+    private async Task RefreshMatchAsync()
+    {
+        if (_client == null || _reading) return;
+        _reading = true;
+        try { ShowMatch(await _client.StatusAsync(default)); }
+        catch (Exception e) when (e is HttpRequestException or ModServiceException or InvalidDataException or TaskCanceledException) { }
+        finally { _reading = false; }
+    }
+
+    internal void ShowMatch(MatchStatus? status)
+    {
+        _status = status;
+        foreach (string name in new[] { nameof(HasMatch), nameof(CanStartMatch), nameof(IsStartLoading), nameof(MatchText), nameof(MatchDetail) })
+            Raise(name);
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private async Task StartMatchAsync()
+    {
+        if (_client == null || _status == null) return;
+        var downloading = _status.Lobby.Where(p => p.IsDownloading).Select(p => p.Name).ToList();
+        int waiting = _status.Lobby.Count - downloading.Count;
+        string text = waiting > 0
+            ? $"The game opens for the {waiting} player(s) waiting in their launchers, and the match begins once they're in, or after 60 seconds."
+            : "Nobody waits in a launcher, so the match begins at once.";
+        if (downloading.Count > 0) text += $" Still downloading: {string.Join(", ", downloading)}. They join when their download is done.";
+        if (!await _main.ConfirmAsync("Start the match?", text, "Start match")) return;
+        await MatchAsync(c => c.StartMatchAsync(default), waiting > 0 ? "Starting: the waiting players' games are opening." : "The match is starting.");
+    }
+
+    private async Task MatchAsync(Func<ModUploadClient, Task> action, string? done)
+    {
+        if (_client == null) return;
+        var client = _client;
+        var error = await Activity.RunAsync("Telling the server", (_, _) => action(client));
+        if (error != null) _main.ShowError(error);
+        else if (done != null) _main.ShowNotice(done);
+        await RefreshMatchAsync();
     }
 
     public ActivityViewModel Activity => _main.Activity;
@@ -157,11 +240,16 @@ public sealed class RemoteAdminViewModel : ObservableObject
         _main.Setup.State.RemoteAdmin = new RemoteAdminProfile { Address = server.ToString(), AdminPassword = Password };
         _main.Setup.Save();
         IsConnected = true;
+        _catalog = new MapCatalogStore(_main.Setup.Layout, _main.Setup.State.InstalledVersion).TryLoadCached();
+        await RefreshMatchAsync();
+        _matchTimer.Start();
         await ShowAsync(manifest!);
     }
 
     private void Disconnect()
     {
+        _matchTimer.Stop();
+        ShowMatch(null);
         _client = null;
         IsConnected = false;
         ServerMods = Array.Empty<RemoteModItem>();
@@ -341,6 +429,11 @@ public sealed class RemoteAdminViewModel : ObservableObject
             ["BF1"] = (Sample("BF1", 644_000_000), null),
             ["Endor"] = (Sample("Endor", 48_500_000), null),
             ["Geonosis_Plus"] = (Sample("Geonosis_Plus", 132_000_000), null),
+        });
+        ShowMatch(new MatchStatus
+        {
+            Schema = 1, Phase = "lobby", Map = "BS1g_con", Players = 1,
+            Lobby = { new LobbyPlayer("Pat", "waiting", 100), new LobbyPlayer("Cody", "waiting", 100), new LobbyPlayer("Echo", "downloading", 45) },
         });
     }
 }
