@@ -155,17 +155,23 @@ public sealed class MultiplayerViewModel : ObservableObject
         while (true)
         {
             string? tried = password;
+            string? worked = tried;
             var error = await Activity.RunAsync(title, async (progress, ct) =>
             {
                 progress.Report(new StepUpdate(title, "Asking the server for its mods"));
-                reply = await ModService.GetManifestAsync(_http, server, tried, ct);
+                (reply, worked) = await ModService.GetManifestOrOpenAsync(_http, server, tried, ct);
             }, cancellable: true);
             if (error != null)
             {
                 _main.ShowError(error, "Not joined.");
                 return;
             }
-            if (reply.Status != ModServiceStatus.NeedsPassword) break;
+            if (reply.Status != ModServiceStatus.NeedsPassword)
+            {
+                // A server that dropped its password: join without the old one, and forget it
+                password = worked;
+                break;
+            }
             string? answer = await _main.AskAsync(password == null ? "This server has a password" : "Wrong password",
                 "Type the server's join password. The launcher keeps it with the server in your recent list.", "", "Join");
             if (string.IsNullOrWhiteSpace(answer)) return;

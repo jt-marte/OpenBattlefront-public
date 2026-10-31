@@ -230,6 +230,35 @@ public class ServerModsTests
     private static HttpClient Http(HttpMessageHandler handler) => ModService.CreateHttp(new Version(0, 3, 0), handler);
 
     [Fact]
+    public async Task A_refused_password_is_tried_once_without_for_a_server_that_dropped_it()
+    {
+        var open = new FakeModServer();
+        open.Add("BF1", "addme.script", "a");
+        using (var http = Http(open))
+        {
+            var (reply, password) = await ModService.GetManifestOrOpenAsync(http, Local, "old", default);
+            Assert.Equal(ModServiceStatus.Ok, reply.Status);
+            Assert.Null(password);
+            Assert.Equal(new[] { "old", null }, open.Requests.Select(r => r.Auth));
+        }
+
+        var locked = new FakeModServer { JoinPassword = "secret" };
+        locked.Add("BF1", "addme.script", "a");
+        using (var http = Http(locked))
+        {
+            var (wrong, kept) = await ModService.GetManifestOrOpenAsync(http, Local, "old", default);
+            Assert.Equal(ModServiceStatus.NeedsPassword, wrong.Status);
+            Assert.Equal("old", kept);
+            var (right, used) = await ModService.GetManifestOrOpenAsync(http, Local, "secret", default);
+            Assert.Equal(ModServiceStatus.Ok, right.Status);
+            Assert.Equal("secret", used);
+            var (none, noPassword) = await ModService.GetManifestOrOpenAsync(http, Local, null, default);
+            Assert.Equal(ModServiceStatus.NeedsPassword, none.Status);
+            Assert.Null(noPassword);
+        }
+    }
+
+    [Fact]
     public async Task Tells_a_password_prompt_from_no_mod_service()
     {
         var server = new FakeModServer { JoinPassword = "secret" };

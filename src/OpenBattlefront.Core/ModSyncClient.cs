@@ -74,6 +74,19 @@ public static class ModService
         }
     }
 
+    /// <summary>The mod list with a password the player gave or the launcher kept. A server that
+    /// has no join password (any more) refuses every password, and the game would refuse the join
+    /// too, so a refused one is tried once without. Password is the one that worked: null for none,
+    /// or the refused one when the server does want a password.</summary>
+    public static async Task<(ModServiceReply Reply, string? Password)> GetManifestOrOpenAsync(
+        HttpClient http, ServerAddress server, string? password, CancellationToken ct)
+    {
+        var reply = await GetManifestAsync(http, server, password, ct).ConfigureAwait(false);
+        if (reply.Status != ModServiceStatus.NeedsPassword || password == null) return (reply, password);
+        var open = await GetManifestAsync(http, server, null, ct).ConfigureAwait(false);
+        return open.Status == ModServiceStatus.NeedsPassword ? (reply, password) : (open, null);
+    }
+
     /// <summary>The service's {"error": "..."} reply as an exception to show.</summary>
     public static async Task<ModServiceException> ErrorAsync(HttpResponseMessage response, CancellationToken ct)
     {
