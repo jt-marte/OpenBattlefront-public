@@ -104,7 +104,7 @@ public sealed class MapCatalog
                 foreach (var mode in Array(map, "modes"))
                 {
                     string? id = Text(mode, "id");
-                    if (string.IsNullOrEmpty(id)) continue;
+                    if (string.IsNullOrEmpty(id) || IsSinglePlayerOnly(id)) continue;
                     var missions = new Dictionary<string, string>();
                     if (mode.TryGetProperty("missions", out var m) && m.ValueKind == JsonValueKind.Object)
                         foreach (var p in m.EnumerateObject())
@@ -122,6 +122,10 @@ public sealed class MapCatalog
             return new MapCatalog(Text(root, "language") ?? "english", maps);
         }
     }
+
+    /// <summary>The game's own multiplayer mission select never offers XL: its 320 soldiers ran
+    /// clients' packet pools dry on a server.</summary>
+    public static bool IsSinglePlayerOnly(string modeId) => modeId.Equals("xl", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The game calls both eli and ass "Assault": eli is the heroes-only one, ass is
     /// space.</summary>
