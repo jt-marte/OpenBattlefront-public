@@ -22,7 +22,8 @@ public class MapCatalogTests
        "eras":["g"],
        "modes":[{"id":"con","name":"Conquest","missions":{"g":"bes2g_con","x":"bad mission;"}},
                 {"id":"hunt","name":"Hunt","missions":{"q":"bes2q_hunt"}},
-                {"id":"xl","name":"XL","missions":{"g":"bes2g_xl"}}]},
+                {"id":"xl","name":"XL","missions":{"g":"bes2g_xl"}},
+                {"id":"uber","name":"Uber","missions":{"g":"bes2g_uber"}}]},
       {"code":"AB1","file":"AB1%s_%s","name":"Abregado","mod":true,
        "eras":[{"id":"k","name":"KotOR"}],
        "modes":[{"id":"eli","key":"common.mode.eli","name":"Assault","missions":{"k":"AB1k_eli"}}]},
@@ -57,8 +58,9 @@ public class MapCatalogTests
         Assert.Equal("Bespin: Cloud City é \"quoted\"", bes.Name);
         Assert.Equal(new[] { "bes2g_con", "bes2q_hunt" }, bes.Missions.Select(m => m.Mission));
         Assert.Equal("q", bes.Missions[1].EraName);
-        // XL is single player only, as in the game's own multiplayer mission select
+        // XL and Uber are single player only, as in the game's own multiplayer mission select
         Assert.False(catalog.Contains("bes2g_xl"));
+        Assert.False(catalog.Contains("bes2g_uber"));
 
         Assert.Equal("Kashyyyk: Beachhead · Clone Wars · Conquest", catalog.Find("KAS2C_CON")!.Title);
         Assert.True(catalog.Contains("bes2g_con"));

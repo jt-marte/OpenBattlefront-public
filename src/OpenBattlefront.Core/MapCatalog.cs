@@ -123,9 +123,10 @@ public sealed class MapCatalog
         }
     }
 
-    /// <summary>The game's own multiplayer mission select never offers XL: its 320 soldiers ran
-    /// clients' packet pools dry on a server.</summary>
-    public static bool IsSinglePlayerOnly(string modeId) => modeId.Equals("xl", StringComparison.OrdinalIgnoreCase);
+    /// <summary>The game's own multiplayer mission select never offers XL or Uber: their 320 to 560
+    /// soldiers ran clients' packet pools dry, or sent updates too big to take, on a server.</summary>
+    public static bool IsSinglePlayerOnly(string modeId) =>
+        modeId.Equals("xl", StringComparison.OrdinalIgnoreCase) || modeId.Equals("uber", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The game calls both eli and ass "Assault": eli is the heroes-only one, ass is
     /// space.</summary>
