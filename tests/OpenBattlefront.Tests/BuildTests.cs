@@ -174,9 +174,11 @@ public class GameLauncherTests
     [Fact]
     public void Arguments()
     {
-        Assert.Equal("", GameLauncher.BuildArguments(new LauncherState()));
+        // borderless by default
+        Assert.Equal("-borderless", GameLauncher.BuildArguments(new LauncherState()));
+        Assert.Equal("", GameLauncher.BuildArguments(new LauncherState { Borderless = false }));
         Assert.Equal("-vulkan -borderless", GameLauncher.BuildArguments(new LauncherState { Renderer = "vulkan", Borderless = true }));
-        Assert.Equal("-d3d9 /nointro", GameLauncher.BuildArguments(new LauncherState { Renderer = "d3d9", ExtraArgs = "  /nointro " }));
+        Assert.Equal("-d3d9 /nointro", GameLauncher.BuildArguments(new LauncherState { Renderer = "d3d9", Borderless = false, ExtraArgs = "  /nointro " }));
     }
 
     [Fact]
@@ -184,12 +186,15 @@ public class GameLauncherTests
     {
         using var temp = new TempDir();
         string file = temp.Sub("launcher.json");
-        new LauncherState { InstalledVersion = "0.1.0", Borderless = true, ImportComplete = true }.Save(file);
+        new LauncherState { InstalledVersion = "0.1.0", Borderless = false, ImportComplete = true }.Save(file);
         var loaded = LauncherState.Load(file);
         Assert.Equal("0.1.0", loaded.InstalledVersion);
-        Assert.True(loaded.Borderless);
+        Assert.False(loaded.Borderless); // a player's choice is kept
         Assert.True(loaded.ImportComplete);
         Assert.DoesNotContain("layout", File.ReadAllText(file));
+        // a launcher.json from before the setting existed starts borderless
+        File.WriteAllText(file, """{ "installedVersion": "0.1.0" }""");
+        Assert.True(LauncherState.Load(file).Borderless);
 
         File.WriteAllText(file, "{ broken");
         Assert.Null(LauncherState.Load(file).InstalledVersion);

@@ -23,7 +23,7 @@ public sealed class LauncherState
 
     /// <summary>"game" uses the in-game setting; "vulkan" or "d3d9" override it for each run.</summary>
     public string Renderer { get; set; } = "game";
-    public bool Borderless { get; set; }
+    public bool Borderless { get; set; } = true;
     public string ExtraArgs { get; set; } = "";
     public bool MinimiseWhilePlaying { get; set; } = true;
     public bool CheckUpdatesOnStart { get; set; } = true;
