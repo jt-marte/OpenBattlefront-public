@@ -62,7 +62,7 @@ public partial class ServerControlView : UserControl
         DataObject? data = item switch
         {
             CatalogChipViewModel chip => new DataObject(MissionsFormat, new[] { chip.Choice }),
-            CatalogMapViewModel map => new DataObject(MissionsFormat, map.Map.Missions.ToArray()),
+            CatalogMapViewModel map => new DataObject(MissionsFormat, map.Choices.ToArray()),
             PlaylistItemViewModel row => new DataObject(RowFormat, row),
             _ => null,
         };

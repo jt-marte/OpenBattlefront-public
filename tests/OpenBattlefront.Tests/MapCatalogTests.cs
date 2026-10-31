@@ -24,8 +24,11 @@ public class MapCatalogTests
                 {"id":"xl","name":"XL","missions":{"q":"bes2q_xl"}}]},
       {"code":"AB1","file":"AB1%s_%s","name":"Abregado","mod":true,
        "eras":[{"id":"k","name":"KotOR"}],
-       "modes":[{"id":"eli","key":"common.mode.eli","name":"Assault","missions":{"k":"AB1k_eli"}},
-                {"id":"ass","key":"common.mode.ass","name":"Assault","missions":{"k":"AB1k_ass"}}]},
+       "modes":[{"id":"eli","key":"common.mode.eli","name":"Assault","missions":{"k":"AB1k_eli"}}]},
+      {"code":"S07","file":"S07%s_%s","name":"Space Dantooine","mod":true,
+       "eras":[{"id":"c","name":"Clone Wars"}],
+       "modes":[{"id":"ass","key":"common.mode.ass","name":"Assault","missions":{"c":"S07c_ass"}},
+                {"id":"1flag","name":"1-flag CTF","missions":{"c":"S07c_1flag"}}]},
       {"code":"nomodes","name":"Broken","mod":true,"eras":[],"modes":[]}
      ]}
     """;
@@ -36,7 +39,7 @@ public class MapCatalogTests
         var catalog = MapCatalog.Parse(Sample);
 
         Assert.Equal("english", catalog.Language);
-        Assert.Equal(new[] { "geo1", "kas2", "bes2", "AB1" }, catalog.Maps.Select(m => m.Code));
+        Assert.Equal(new[] { "geo1", "kas2", "bes2", "AB1", "S07" }, catalog.Maps.Select(m => m.Code));
 
         var geo = catalog.Maps[0];
         Assert.False(geo.IsMod);
@@ -57,10 +60,14 @@ public class MapCatalogTests
         Assert.Equal("Kashyyyk: Beachhead · Clone Wars · Conquest", catalog.Find("KAS2C_CON")!.Title);
         Assert.True(catalog.Contains("bes2g_con"));
 
-        // Mod codes keep their case; eli and ass are both "Assault" in the game.
+        // Mod codes keep their case; eli and ass are both "Assault" in the game: heroes, and space.
         Assert.Equal("KotOR · Hero Assault", catalog.Find("ab1k_eli")!.Label);
-        Assert.Equal("Assault", catalog.Find("AB1k_ass")!.ModeName);
+        Assert.Equal("Space Assault", catalog.Find("S07c_ass")!.ModeName);
         Assert.False(catalog.Contains("bad mission;"));
+
+        // Space battles: a space mode, whatever the map's code; the rest are ground battles
+        Assert.Equal(new[] { "S07" }, catalog.Maps.Where(m => m.IsSpace).Select(m => m.Code));
+        Assert.Equal(("c", "ass"), (catalog.Find("S07c_ass")!.EraId, catalog.Find("S07c_ass")!.ModeId));
     }
 
     [Theory]
@@ -99,7 +106,7 @@ public class MapCatalogTests
         var store = new MapCatalogStore(layout, "0.2.0", FakeGame(calls));
 
         var first = await store.GetAsync(refresh: false, null, CancellationToken.None);
-        Assert.Equal(4, first.Maps.Count);
+        Assert.Equal(5, first.Maps.Count);
         Assert.Single(calls);
         Assert.StartsWith("-listmissions \"", calls[0]);
         Assert.Contains("\" -lang 0", calls[0]);

@@ -13,6 +13,13 @@ namespace OpenBattlefront.ViewModels;
 public enum ServerStatus { NotRunning, Starting, Loading, Lobby, Warmup, Playing, Results, Stopping }
 public enum ControlTab { Playlist, Players, Chat, Options }
 public enum CatalogStatus { Idle, Loading, Ready, NeedsUpdate, NotInstalled, Failed }
+public enum BattleKind { Ground, Space }
+
+/// <summary>An entry in the era or mode filter; a null id is "all".</summary>
+public sealed record FilterChoice(string? Id, string Name)
+{
+    public override string ToString() => Name;
+}
 
 /// <summary>
 /// The playlist and control screen: the map catalog, the playlist, the server's status and
@@ -35,6 +42,14 @@ public sealed class ServerControlViewModel : ObservableObject
     private string _search = "";
     private bool _showStock = true;
     private bool _showMods = true;
+    private BattleKind _kind;
+    private static readonly FilterChoice AllEras = new(null, "All eras");
+    private static readonly FilterChoice AllModes = new(null, "All modes");
+    private FilterChoice _era = AllEras;
+    private FilterChoice _mode = AllModes;
+    private IReadOnlyList<FilterChoice> _eraChoices = new[] { AllEras };
+    private IReadOnlyList<FilterChoice> _modeChoices = new[] { AllModes };
+    private readonly DispatcherTimer _searchDelay = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private ServerStatus _status;
     private ServerState? _state;
     private ControlTab _tab;
@@ -57,6 +72,11 @@ public sealed class ServerControlViewModel : ObservableObject
         _host.LineReceived += line => Ui(() => OnServerLine(line));
         _host.Exited += () => Ui(OnServerExited);
         _poll.Tick += async (_, _) => await PollAsync();
+        _searchDelay.Tick += (_, _) =>
+        {
+            _searchDelay.Stop();
+            FilterMaps();
+        };
 
         LiveOptions = new ServerOptionsViewModel(main, live: true) { ServerLocked = true };
         MessagesView = CollectionViewSource.GetDefaultView(Messages);
@@ -198,13 +218,63 @@ public sealed class ServerControlViewModel : ObservableObject
 
     public string CatalogMessage { get => _catalogMessage; private set => Set(ref _catalogMessage, value); }
 
+    /// <summary>Filtered a moment after the last key, not on every one.</summary>
     public string Search
     {
         get => _search;
         set
         {
-            if (Set(ref _search, value)) FilterMaps();
+            if (!Set(ref _search, value)) return;
+            _searchDelay.Stop();
+            _searchDelay.Start();
         }
+    }
+
+    /// <summary>Ground battles or space battles: the catalog lists one at a time.</summary>
+    public BattleKind Kind
+    {
+        get => _kind;
+        set
+        {
+            if (!Set(ref _kind, value)) return;
+            UpdateFilterChoices();
+            FilterMaps();
+        }
+    }
+
+    public IReadOnlyList<FilterChoice> EraChoices { get => _eraChoices; private set => Set(ref _eraChoices, value); }
+    public IReadOnlyList<FilterChoice> ModeChoices { get => _modeChoices; private set => Set(ref _modeChoices, value); }
+
+    public FilterChoice SelectedEra
+    {
+        get => _era;
+        set
+        {
+            if (value != null && Set(ref _era, value)) FilterMaps();
+        }
+    }
+
+    public FilterChoice SelectedMode
+    {
+        get => _mode;
+        set
+        {
+            if (value != null && Set(ref _mode, value)) FilterMaps();
+        }
+    }
+
+    /// <summary>The era and mode filters offer only what this kind of battle has; a choice that
+    /// isn't there any more goes back to "all".</summary>
+    private void UpdateFilterChoices()
+    {
+        var maps = _catalog?.Maps ?? (IReadOnlyList<MapInfo>)Array.Empty<MapInfo>();
+        bool space = Kind == BattleKind.Space;
+        EraChoices = new[] { AllEras }.Concat(CatalogFilter.Eras(maps, space).Select(e => new FilterChoice(e.Id, e.Name))).ToList();
+        ModeChoices = new[] { AllModes }.Concat(CatalogFilter.Modes(maps, space).Select(m => new FilterChoice(m.Id, m.Name))).ToList();
+        _era = EraChoices.FirstOrDefault(c => c.Id == _era.Id) ?? AllEras;
+        _mode = ModeChoices.FirstOrDefault(c => c.Id == _mode.Id) ?? AllModes;
+        Raise(nameof(SelectedEra));
+        Raise(nameof(SelectedMode));
     }
 
     public bool ShowStock
@@ -288,22 +358,23 @@ public sealed class ServerControlViewModel : ObservableObject
         _catalog = catalog;
         CatalogStatus = CatalogStatus.Ready;
         CatalogMessage = "";
+        UpdateFilterChoices();
         FilterMaps();
         LoadPlaylist();
     }
 
+    /// <summary>The catalog shows one kind of battle, narrowed by era, mode, source and search;
+    /// each map lists only the missions that fit. A search opens the maps it finds when there
+    /// are few enough to read.</summary>
     private void FilterMaps()
     {
         Maps.Clear();
         if (_catalog == null) return;
-        string[] words = Search.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        foreach (var map in _catalog.Maps.OrderBy(m => m.IsMod).ThenBy(m => m.Name, StringComparer.CurrentCultureIgnoreCase))
-        {
-            if (map.IsMod ? !ShowMods : !ShowStock) continue;
-            string haystack = $"{map.Name} {map.Code} {string.Join(' ', map.Missions.Select(c => c.Label + " " + c.Mission))}";
-            if (!words.All(w => haystack.Contains(w, StringComparison.CurrentCultureIgnoreCase))) continue;
-            Maps.Add(new CatalogMapViewModel(this, map, _expanded.Contains(map.Code) || words.Length > 0));
-        }
+        var query = new CatalogQuery(Kind == BattleKind.Space, SelectedEra.Id, SelectedMode.Id, ShowStock, ShowMods, Search);
+        var maps = CatalogFilter.Maps(_catalog.Maps, query);
+        bool openAll = Search.Trim().Length > 0 && maps.Count <= 3;
+        foreach (var map in maps)
+            Maps.Add(new CatalogMapViewModel(this, map, CatalogFilter.Choices(map, query), _expanded.Contains(map.Code) || openAll));
         Raise(nameof(CatalogCount));
     }
 

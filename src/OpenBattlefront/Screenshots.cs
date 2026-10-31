@@ -15,6 +15,7 @@ internal static class Screenshots
         Directory.CreateDirectory(dir);
         main.Play.Refresh();
         await Settle(1500);
+        for (int i = 0; i < 150 && main.Play.IsSearching; i++) await Settle(200); // the drive search
         if (drop != null)
         {
             await main.Play.HandleDropAsync(drop);
@@ -57,10 +58,23 @@ internal static class Screenshots
         await control.LoadCatalogAsync(refresh: false);
         foreach (var map in control.Maps.Where(m => m.Map.Code is "cor1" or "dag1")) map.IsExpanded = true;
         var catalog = SampleCatalog.Load();
-        control.AddMissions(new[] { "geo1c_con", "kas2g_ctf", "hot1g_hunt", "mus1g_eli", "bes2g_con", "yav1c_ctf" }.Select(m => catalog.Find(m)!));
+        control.AddMissions(new[] { "geo1c_con", "kas2g_ctf", "hot1g_hunt", "mus1g_eli", "BS2c_con", "spa3c_ass" }.Select(m => catalog.Find(m)!));
         control.Playlist[0].Tickets1 = "250";
         await Settle(400);
         SaveAs("3c-servers-playlist.png");
+
+        // Space battles, then ground battles narrowed to one era and mode
+        control.Kind = BattleKind.Space;
+        await Settle(300);
+        SaveAs("3j-servers-space.png");
+        control.Kind = BattleKind.Ground;
+        control.SelectedEra = control.EraChoices.First(c => c.Id == "g");
+        control.SelectedMode = control.ModeChoices.First(c => c.Id == "ctf");
+        foreach (var map in control.Maps.Take(2)) map.IsExpanded = true;
+        await Settle(300);
+        SaveAs("3k-servers-filtered.png");
+        control.SelectedEra = control.EraChoices[0];
+        control.SelectedMode = control.ModeChoices[0];
 
         control.PlaylistDragHover = true;
         control.Playlist[2].DropBefore = true;

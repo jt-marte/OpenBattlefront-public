@@ -9,28 +9,35 @@ public sealed class CatalogMapViewModel : ObservableObject
     private readonly ServerControlViewModel _owner;
     private bool _isExpanded;
 
-    public CatalogMapViewModel(ServerControlViewModel owner, MapInfo map, bool expanded)
+    /// <summary><paramref name="choices"/>: the map's missions that fit the filters; the chips
+    /// show those, one line per era, and "add every mode" adds those.</summary>
+    public CatalogMapViewModel(ServerControlViewModel owner, MapInfo map, IReadOnlyList<MissionChoice> choices, bool expanded)
     {
         _owner = owner;
         Map = map;
+        Choices = choices;
         _isExpanded = expanded;
-        Chips = map.Missions.Select(c => new CatalogChipViewModel(owner, c)).ToList();
+        Eras = choices.GroupBy(c => c.EraName)
+            .Select(g => new CatalogEraViewModel(g.Key, g.Select(c => new CatalogChipViewModel(owner, c)).ToList()))
+            .ToList();
         ToggleCommand = new RelayCommand(() => IsExpanded = !IsExpanded);
-        AddAllCommand = new RelayCommand(() => owner.AddMissions(map.Missions));
+        AddAllCommand = new RelayCommand(() => owner.AddMissions(choices));
     }
 
     public MapInfo Map { get; }
+    public IReadOnlyList<MissionChoice> Choices { get; }
     public string Name => Map.Name;
     public bool IsMod => Map.IsMod;
-    public IReadOnlyList<CatalogChipViewModel> Chips { get; }
+    public IReadOnlyList<CatalogEraViewModel> Eras { get; }
 
     public string Summary
     {
         get
         {
-            var modes = Map.Modes.Select(m => m.Name).Distinct().ToList();
-            int eras = Map.Missions.Select(m => m.EraName).Distinct().Count();
-            return $"{string.Join(", ", modes)}  ·  {eras} {(eras == 1 ? "era" : "eras")}";
+            var modes = Choices.Select(m => m.ModeName).Distinct().ToList();
+            int eras = Eras.Count;
+            string list = modes.Count <= 3 ? string.Join(", ", modes) : $"{string.Join(", ", modes.Take(3))} +{modes.Count - 3}";
+            return $"{list}  ·  {eras} {(eras == 1 ? "era" : "eras")}";
         }
     }
 
@@ -47,6 +54,9 @@ public sealed class CatalogMapViewModel : ObservableObject
     public ICommand AddAllCommand { get; }
 }
 
+/// <summary>One era's line under an open map: the era's name, then its modes as chips.</summary>
+public sealed record CatalogEraViewModel(string Name, IReadOnlyList<CatalogChipViewModel> Chips);
+
 public sealed class CatalogChipViewModel
 {
     public CatalogChipViewModel(ServerControlViewModel owner, MissionChoice choice)
@@ -56,8 +66,8 @@ public sealed class CatalogChipViewModel
     }
 
     public MissionChoice Choice { get; }
-    public string Label => Choice.Label;
-    public string Tip => $"{Choice.Mission}  ·  drag into the playlist, or double-click";
+    public string Label => Choice.ModeName;
+    public string Tip => $"{Choice.Title}  ({Choice.Mission})  ·  drag into the playlist, or double-click";
     public ICommand AddCommand { get; }
 }
 

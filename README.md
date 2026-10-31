@@ -15,7 +15,12 @@ Star Wars Battlefront II (2005). Point it at your copy of the game and press **P
 - **Included content:** the launcher package carries the Battlefront Conversion Pack and the Xbox
   DLC, put into the game copy once it is imported (no download, every file SHA-256 checked). They
   show as "Included" on the Mods page: switch them off if you like.
-- **Server manager:** coming soon.
+- **Finds your game:** every Steam library, GOG and retail installs, and the usual folders on every
+  drive (C:, D:, X: …). Or drop the folder, or a folder above it.
+- **Server manager:** host a dedicated server with a lobby. Pick maps from ground or space battles,
+  filter by era and mode, drag them into a playlist, then start, end, skip or restart matches, send
+  players back to the lobby, kick, swap and chat. AI heroes: a bot takes the hero when no player
+  does.
 
 ## What you need
 
@@ -55,7 +60,8 @@ never the Xbox Title Update (`UPDATE_XBOX`), the unofficial 1.3 patch or any `.e
 The launcher installs the content again whenever the content version changes.
 
 For development, `OpenBattlefront.exe --state <file>` uses another `launcher.json` (and so another
-install), and `--screenshot <dir>` saves each page as a PNG and exits.
+install), `--screenshot <dir>` saves each page as a PNG and exits, `--drop <folder>` drops a
+folder on the Play page first, and `--fake-server` simulates a server on the Server manager page.
 
 ## Not affiliated
 

@@ -271,6 +271,16 @@ public sealed class ServerOptionsViewModel : ObservableObject
         }
     }
 
+    public bool AiHeroes
+    {
+        get => Profile.AiHeroes;
+        set
+        {
+            Profile.AiHeroes = value;
+            Changed(nameof(AiHeroes), gameOption: true);
+        }
+    }
+
     /// <summary>"points" or "timer", as Instant Action offers them.</summary>
     public string HeroUnlock
     {

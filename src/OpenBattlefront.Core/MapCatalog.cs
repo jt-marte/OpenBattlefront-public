@@ -11,7 +11,8 @@ public sealed record MapEra(string Id, string Name);
 public sealed record MapMode(string Id, string Name, IReadOnlyDictionary<string, string> Missions);
 
 /// <summary>One mission a playlist can hold: geo1c_con is Geonosis, Clone Wars, Conquest.</summary>
-public sealed record MissionChoice(string Mission, string MapCode, string MapName, string EraName, string ModeName, bool IsMod)
+public sealed record MissionChoice(string Mission, string MapCode, string MapName, string EraName, string ModeName, bool IsMod,
+                                   string EraId = "", string ModeId = "")
 {
     public string Label => $"{EraName} · {ModeName}";
     public string Title => $"{MapName} · {EraName} · {ModeName}";
@@ -22,6 +23,12 @@ public sealed record MapInfo(string Code, string Name, bool IsMod, IReadOnlyList
     /// <summary>Every era × mode the map has, eras first in the dump's order.</summary>
     public IReadOnlyList<MissionChoice> Missions { get; } = ListMissions(Code, Name, IsMod, Eras, Modes);
 
+    /// <summary>A space battle: only space maps have Space Assault (ass) or Team Dogfight (tdf),
+    /// and the stock ones are spa1…spa9. Mod space maps keep their own codes (S07, SRP …).</summary>
+    public bool IsSpace { get; } =
+        Code.StartsWith("spa", StringComparison.OrdinalIgnoreCase) ||
+        Modes.Any(m => m.Id.Equals("ass", StringComparison.OrdinalIgnoreCase) || m.Id.Equals("tdf", StringComparison.OrdinalIgnoreCase));
+
     private static List<MissionChoice> ListMissions(string code, string name, bool isMod, IReadOnlyList<MapEra> eras, IReadOnlyList<MapMode> modes)
     {
         var list = new List<MissionChoice>();
@@ -31,7 +38,7 @@ public sealed record MapInfo(string Code, string Name, bool IsMod, IReadOnlyList
             foreach (var (era, mission) in mode.Missions.OrderBy(m => eraOrder.IndexOf(m.Key) is var i and >= 0 ? i : int.MaxValue))
             {
                 string eraName = eras.FirstOrDefault(e => e.Id == era)?.Name ?? era;
-                list.Add(new MissionChoice(mission, code, name, eraName, mode.Name, isMod));
+                list.Add(new MissionChoice(mission, code, name, eraName, mode.Name, isMod, era, mode.Id));
             }
         }
         return list;
@@ -116,9 +123,11 @@ public sealed class MapCatalog
         }
     }
 
-    /// <summary>The game calls both eli and ass "Assault"; eli is the heroes-only one.</summary>
+    /// <summary>The game calls both eli and ass "Assault": eli is the heroes-only one, ass is
+    /// space.</summary>
     private static string ModeName(string id, string? name) =>
-        id.Equals("eli", StringComparison.OrdinalIgnoreCase) ? "Hero Assault" : name ?? id;
+        id.Equals("eli", StringComparison.OrdinalIgnoreCase) ? "Hero Assault" :
+        id.Equals("ass", StringComparison.OrdinalIgnoreCase) ? "Space Assault" : name ?? id;
 
     private static IEnumerable<JsonElement> Array(JsonElement element, string name) =>
         element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Array

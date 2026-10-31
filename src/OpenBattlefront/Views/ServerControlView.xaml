@@ -73,6 +73,74 @@
             </Setter>
         </Style>
 
+        <!-- Era and mode filter: a small dark drop-down -->
+        <Style x:Key="FilterCombo" TargetType="ComboBox">
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton Focusable="False" ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Bd" CornerRadius="8" Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1">
+                                            <TextBlock Text="&#xE70D;" Style="{StaticResource Glyph}" FontSize="9" Foreground="{StaticResource Faint}"
+                                                       HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,9,0" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}" Margin="10,0,24,0"
+                                              VerticalAlignment="Center" HorizontalAlignment="Left" TextBlock.Foreground="{StaticResource Text}" />
+                            <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
+                                <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Padding="4"
+                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="280" Margin="0,4,0,0">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Foreground" Value="{StaticResource Text}" />
+                        <Setter Property="Cursor" Value="Hand" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBoxItem">
+                                    <Border x:Name="Bd" CornerRadius="6" Padding="9,5" Background="Transparent">
+                                        <ContentPresenter />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsHighlighted" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Hover}" />
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentSoft}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Lists without the default chrome -->
         <Style x:Key="PlainList" TargetType="ListBox">
             <Setter Property="Background" Value="Transparent" />
@@ -238,7 +306,7 @@
         <Grid Grid.Row="3" Visibility="{Binding Tab, Converter={StaticResource Show}, ConverterParameter=Playlist}">
             <Grid Visibility="{Binding ShowPlaylistScreen, Converter={StaticResource Vis}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="292" />
+                    <ColumnDefinition Width="330" />
                     <ColumnDefinition Width="12" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
@@ -249,22 +317,43 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <Grid Margin="0,0,6,0">
+                        <!-- Ground or space battles -->
+                        <Border Style="{StaticResource Panel}" Background="{StaticResource Bg}" Padding="3" CornerRadius="8" Margin="0,0,6,8">
+                            <UniformGrid Columns="2">
+                                <RadioButton Style="{StaticResource Segment}" Content="Ground battles"
+                                             IsChecked="{Binding Kind, Converter={StaticResource Eq}, ConverterParameter=Ground}" />
+                                <RadioButton Style="{StaticResource Segment}" Content="Space battles"
+                                             IsChecked="{Binding Kind, Converter={StaticResource Eq}, ConverterParameter=Space}" />
+                            </UniformGrid>
+                        </Border>
+                        <Grid Grid.Row="1" Margin="0,0,6,0">
                             <TextBox x:Name="SearchBox" Style="{StaticResource Field}" Height="30" Padding="28,0,8,0" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" />
                             <TextBlock Text="&#xE721;" Style="{StaticResource Glyph}" FontSize="12" Foreground="{StaticResource Faint}" HorizontalAlignment="Left" Margin="10,0,0,0" IsHitTestVisible="False" />
-                            <TextBlock Text="Search maps and modes" FontSize="12.5" Foreground="{StaticResource Faint}" Margin="29,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                            <TextBlock Text="Search maps" FontSize="12.5" Foreground="{StaticResource Faint}" Margin="29,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
                                        Visibility="{Binding Text, ElementName=SearchBox, Converter={StaticResource Show}, ConverterParameter=''}" />
                         </Grid>
-                        <DockPanel Grid.Row="1" Margin="0,8,6,6">
+                        <!-- Era and mode -->
+                        <Grid Grid.Row="2" Margin="0,8,6,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="6" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox Style="{StaticResource FilterCombo}" ItemsSource="{Binding EraChoices}" SelectedItem="{Binding SelectedEra}" ToolTip="Era" />
+                            <ComboBox Grid.Column="2" Style="{StaticResource FilterCombo}" ItemsSource="{Binding ModeChoices}" SelectedItem="{Binding SelectedMode}" ToolTip="Game mode" />
+                        </Grid>
+                        <DockPanel Grid.Row="3" Margin="0,8,6,6">
                             <CheckBox Style="{StaticResource FilterPill}" Content="Stock" IsChecked="{Binding ShowStock}" />
                             <CheckBox Style="{StaticResource FilterPill}" Content="Mods" IsChecked="{Binding ShowMods}" Margin="6,0,0,0" />
                             <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE72C;" Width="26" Height="26" FontSize="12"
                                     Command="{Binding RefreshMapsCommand}" ToolTip="Refresh maps: read the map list from the game again" />
                             <TextBlock Text="{Binding CatalogCount}" FontSize="11" Foreground="{StaticResource Faint}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,6,0" />
                         </DockPanel>
-                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Visibility="{Binding CatalogReady, Converter={StaticResource Vis}}">
+                        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto" Visibility="{Binding CatalogReady, Converter={StaticResource Vis}}">
                             <ItemsControl ItemsSource="{Binding Maps}" Margin="0,0,6,0">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:CatalogMapViewModel}">
@@ -281,7 +370,7 @@
                                                     <TextBlock x:Name="Chevron" Text="&#xE76C;" Style="{StaticResource Glyph}" FontSize="10" Foreground="{StaticResource Faint}" />
                                                     <StackPanel Grid.Column="1" Margin="2,0,4,0">
                                                         <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis" MaxWidth="186" />
+                                                            <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis" MaxWidth="222" />
                                                             <Border Style="{StaticResource Tag}" Background="#33E0A93B" Visibility="{Binding IsMod, Converter={StaticResource Vis}}">
                                                                 <TextBlock Text="MOD" Style="{StaticResource TagText}" Foreground="#E0A93B" />
                                                             </Border>
@@ -292,24 +381,34 @@
                                                             Command="{Binding AddAllCommand}" ToolTip="Add every mode" />
                                                 </Grid>
                                             </Border>
-                                            <ItemsControl ItemsSource="{Binding Chips}" Margin="24,0,0,6" Visibility="{Binding IsExpanded, Converter={StaticResource Vis}}">
-                                                <ItemsControl.ItemsPanel>
-                                                    <ItemsPanelTemplate>
-                                                        <WrapPanel />
-                                                    </ItemsPanelTemplate>
-                                                </ItemsControl.ItemsPanel>
+                                            <!-- One line per era: its name, then its modes -->
+                                            <ItemsControl ItemsSource="{Binding Eras}" Margin="24,0,0,6" Visibility="{Binding IsExpanded, Converter={StaticResource Vis}}">
                                                 <ItemsControl.ItemTemplate>
-                                                    <DataTemplate DataType="{x:Type vm:CatalogChipViewModel}">
-                                                        <Border x:Name="Chip" CornerRadius="11" Padding="9,3,10,4" Margin="0,4,5,0" Background="{StaticResource SurfaceHi}"
-                                                                BorderBrush="{StaticResource Line}" BorderThickness="1" Cursor="Hand" ToolTip="{Binding Tip}"
-                                                                MouseLeftButtonDown="OnDragSourceDown" MouseMove="OnDragSourceMove">
-                                                            <TextBlock Text="{Binding Label}" FontSize="11.5" Foreground="{StaticResource Text}" />
-                                                        </Border>
-                                                        <DataTemplate.Triggers>
-                                                            <Trigger SourceName="Chip" Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource Accent}" />
-                                                            </Trigger>
-                                                        </DataTemplate.Triggers>
+                                                    <DataTemplate DataType="{x:Type vm:CatalogEraViewModel}">
+                                                        <StackPanel Margin="0,4,0,0">
+                                                            <TextBlock Text="{Binding Name}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource Faint}" />
+                                                            <ItemsControl ItemsSource="{Binding Chips}">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <WrapPanel />
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate DataType="{x:Type vm:CatalogChipViewModel}">
+                                                                        <Border x:Name="Chip" CornerRadius="11" Padding="9,3,10,4" Margin="0,3,5,0" Background="{StaticResource SurfaceHi}"
+                                                                                BorderBrush="{StaticResource Line}" BorderThickness="1" Cursor="Hand" ToolTip="{Binding Tip}"
+                                                                                MouseLeftButtonDown="OnDragSourceDown" MouseMove="OnDragSourceMove">
+                                                                            <TextBlock Text="{Binding Label}" FontSize="11.5" Foreground="{StaticResource Text}" />
+                                                                        </Border>
+                                                                        <DataTemplate.Triggers>
+                                                                            <Trigger SourceName="Chip" Property="IsMouseOver" Value="True">
+                                                                                <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                                                            </Trigger>
+                                                                        </DataTemplate.Triggers>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
@@ -326,7 +425,7 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </ScrollViewer>
-                        <StackPanel Grid.Row="2" VerticalAlignment="Center" Margin="10,0,16,30" Visibility="{Binding CatalogReady, Converter={StaticResource NotVis}}">
+                        <StackPanel Grid.Row="4" VerticalAlignment="Center" Margin="10,0,16,30" Visibility="{Binding CatalogReady, Converter={StaticResource NotVis}}">
                             <TextBlock Text="{Binding CatalogMessage}" Style="{StaticResource Body}" TextAlignment="Center" />
                             <ProgressBar Style="{StaticResource Thin}" IsIndeterminate="True" Margin="20,12,20,0"
                                          Visibility="{Binding CatalogStatus, Converter={StaticResource Show}, ConverterParameter=Loading}" />
@@ -378,18 +477,19 @@
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="{Binding Number}" FontSize="12" Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="{Binding MapName}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis" MaxWidth="190" />
-                                                        <Border Style="{StaticResource Tag}" Background="{StaticResource Success}" Visibility="{Binding IsCurrent, Converter={StaticResource Vis}}">
-                                                            <TextBlock Text="NOW" Style="{StaticResource TagText}" Foreground="#0A0D14" />
-                                                        </Border>
-                                                        <Border Style="{StaticResource Tag}" Background="{StaticResource AccentSoft}" Visibility="{Binding IsNext, Converter={StaticResource Vis}}">
-                                                            <TextBlock Text="NEXT" Style="{StaticResource TagText}" Foreground="{StaticResource Accent}" />
-                                                        </Border>
-                                                        <Border Style="{StaticResource Tag}" Background="#33E0A93B" Visibility="{Binding IsMod, Converter={StaticResource Vis}}">
+                                                    <!-- The name gives way to its tags -->
+                                                    <DockPanel LastChildFill="True">
+                                                        <Border DockPanel.Dock="Right" Style="{StaticResource Tag}" Background="#33E0A93B" Visibility="{Binding IsMod, Converter={StaticResource Vis}}">
                                                             <TextBlock Text="MOD" Style="{StaticResource TagText}" Foreground="#E0A93B" />
                                                         </Border>
-                                                    </StackPanel>
+                                                        <Border DockPanel.Dock="Right" Style="{StaticResource Tag}" Background="{StaticResource AccentSoft}" Visibility="{Binding IsNext, Converter={StaticResource Vis}}">
+                                                            <TextBlock Text="NEXT" Style="{StaticResource TagText}" Foreground="{StaticResource Accent}" />
+                                                        </Border>
+                                                        <Border DockPanel.Dock="Right" Style="{StaticResource Tag}" Background="{StaticResource Success}" Visibility="{Binding IsCurrent, Converter={StaticResource Vis}}">
+                                                            <TextBlock Text="NOW" Style="{StaticResource TagText}" Foreground="#0A0D14" />
+                                                        </Border>
+                                                        <TextBlock Text="{Binding MapName}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis" />
+                                                    </DockPanel>
                                                     <TextBlock x:Name="Detail" Text="{Binding Detail}" FontSize="11.5" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" Margin="0,1,0,0" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"

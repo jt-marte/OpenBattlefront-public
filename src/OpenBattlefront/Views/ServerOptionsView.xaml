@@ -239,6 +239,18 @@
                             </StackPanel>
                         </Border>
                     </Grid>
+                    <Rectangle Style="{StaticResource Divider}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="AI heroes" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="A bot takes the hero when no player has for 30 seconds, or every player turned it down." Style="{StaticResource RowNote}" />
+                        </StackPanel>
+                        <CheckBox Grid.Column="1" Style="{StaticResource Switch}" IsChecked="{Binding AiHeroes}" VerticalAlignment="Center" />
+                    </Grid>
                 </StackPanel>
             </StackPanel>
         </Border>

@@ -38,6 +38,8 @@ public sealed class ServerProfile
     /// <summary>Points (1-50) or seconds (0-120), as Instant Action offers them.</summary>
     public int HeroUnlockValue { get; set; } = 10;
     public int HeroPlayer { get; set; } = HeroPlayerBest;
+    /// <summary>A bot takes the hero when no player has within 30 seconds (OpenSWBF2 0.2.1+).</summary>
+    public bool AiHeroes { get; set; } = true;
 
     /// <summary>Per cent of the map's reinforcements, 10-500.</summary>
     public int ConquestReinforcements { get; set; } = 100;
@@ -120,6 +122,7 @@ public sealed class ServerProfile
             ("hrunlock", HeroUnlock),
             ("hrunlockvalue", HeroUnlockValue),
             ("hrplayer", HeroPlayer),
+            ("aiheroes", On(AiHeroes)),
             ("conreinforcements", ConquestReinforcements),
             ("contimelimit", ConquestTimeLimit),
             ("ctfscorelimit", CtfCaptures),
