@@ -27,15 +27,17 @@ public sealed class PlayViewModel : ObservableObject
     private IReadOnlyList<FoundCopy> _foundCopies = Array.Empty<FoundCopy>();
     private bool _searched;
     private bool _isSearching;
+    private string? _workingHint;
 
     public PlayViewModel(MainViewModel main)
     {
         _main = main;
+        Join = new JoinServerViewModel(main, this);
         BrowseCommand = new RelayCommand(Browse, () => !Activity.IsBusy);
         ResumeCommand = new RelayCommand(() => _ = HandleDropAsync(Setup.State.ImportedFrom!), () => CanResume && !Activity.IsBusy);
         ImportCommand = new RelayCommand(() => _ = ImportAsync(), () => _source != null && !Activity.IsBusy);
         BackCommand = new RelayCommand(() => Refresh(keepReview: false));
-        PlayCommand = new RelayCommand(Launch, () => Stage == PlayStage.Ready && !IsGameRunning && !Activity.IsBusy);
+        PlayCommand = new RelayCommand(() => Launch(), () => CanStartGame);
         UpdateCommand = new RelayCommand(() => _ = InstallLatestAsync(), () => Latest != null && !Activity.IsBusy && !IsGameRunning);
         ChoosePackageCommand = new RelayCommand(ChoosePackage, () => !Activity.IsBusy && !IsGameRunning);
         OpenUrlCommand = new RelayCommand(p => ShellOpen.Url((string)p!));
@@ -45,6 +47,23 @@ public sealed class PlayViewModel : ObservableObject
 
     public ActivityViewModel Activity => _main.Activity;
     private GameSetup Setup => _main.Setup;
+
+    /// <summary>Play > Join a server.</summary>
+    public JoinServerViewModel Join { get; }
+
+    public bool CanStartGame => Stage == PlayStage.Ready && !IsGameRunning && !Activity.IsBusy;
+
+    /// <summary>The line under a running job; null for the default.</summary>
+    public string? WorkingHint
+    {
+        get => _workingHint;
+        set
+        {
+            if (Set(ref _workingHint, value)) Raise(nameof(WorkingHintText));
+        }
+    }
+
+    public string WorkingHintText => WorkingHint ?? "Your own copy stays untouched.";
 
     public ICommand BrowseCommand { get; }
     public ICommand ResumeCommand { get; }
@@ -381,12 +400,13 @@ public sealed class PlayViewModel : ObservableObject
         return true;
     }
 
-    private async void Launch()
+    /// <param name="join">Opens the game straight into joining that server (Join a server).</param>
+    public async void Launch(JoinTarget? join = null)
     {
         try
         {
             if (Setup.State.PlayerName == null && !await ChoosePlayerNameAsync()) return;
-            var game = GameLauncher.Start(Setup.Layout, Setup.State);
+            var game = GameLauncher.Start(Setup.Layout, Setup.State, join);
             _game = game;
             IsGameRunning = true;
             game.EnableRaisingEvents = true;

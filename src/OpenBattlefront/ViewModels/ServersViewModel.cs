@@ -4,10 +4,10 @@ using OpenBattlefront.Core;
 
 namespace OpenBattlefront.ViewModels;
 
-public enum ServerScreen { Landing, Options, Control }
+public enum ServerScreen { Landing, Options, Control, Remote }
 
 /// <summary>The Server manager page: host a server (options, then the playlist and controls), or
-/// later connect to one as admin.</summary>
+/// connect to one running elsewhere as its admin (its mods, for now).</summary>
 public sealed class ServersViewModel : ObservableObject
 {
     private readonly MainViewModel _main;
@@ -18,15 +18,19 @@ public sealed class ServersViewModel : ObservableObject
         _main = main;
         Options = new ServerOptionsViewModel(main, live: false);
         Control = new ServerControlViewModel(main, this);
+        Remote = new RemoteAdminViewModel(main);
         HostCommand = new RelayCommand(() => Screen = Control.IsRunning ? ServerScreen.Control : ServerScreen.Options);
+        ConnectCommand = new RelayCommand(() => Screen = ServerScreen.Remote);
         BackCommand = new RelayCommand(GoBack);
         ContinueCommand = new RelayCommand(Continue);
     }
 
     public ServerOptionsViewModel Options { get; }
     public ServerControlViewModel Control { get; }
+    public RemoteAdminViewModel Remote { get; }
 
     public ICommand HostCommand { get; }
+    public ICommand ConnectCommand { get; }
     public ICommand BackCommand { get; }
     public ICommand ContinueCommand { get; }
 

@@ -38,6 +38,36 @@ internal static class Screenshots
             "letters or numbers; Settings can change it later.", "Pat", "Play");
         await Settle(300);
         Save(window, Path.Combine(dir, "5b-player-name.png"));
+        await CaptureJoinAsync(window, main, dir);
+    }
+
+    /// <summary>Play > Join a server, and the one question before a server's mods download.</summary>
+    private static async Task CaptureJoinAsync(Window window, MainViewModel main, string dir)
+    {
+        main.Setup.State.RecentServers = new List<RecentServer>
+        {
+            new() { Address = "203.0.113.5", Name = "Friday Night Battles", LastJoined = DateTime.UtcNow.AddDays(-1) },
+            new() { Address = "192.168.1.20:3700", LastJoined = DateTime.UtcNow.AddDays(-6) },
+        };
+        main.ConfirmNoCommand.Execute(null);
+        main.DismissNoticeCommand.Execute(null);
+        main.Play.Join.Address = "";
+        main.Play.Join.Open();
+        await Settle(300);
+        Save(window, Path.Combine(dir, "6-join.png"));
+        main.Play.Join.IsOpen = false;
+
+        ModSyncItem Item(string name, ModSyncAction action, long bytes) =>
+            new(new ServerModFolder { Name = name }, action, bytes == 0 ? Array.Empty<ManifestFile>() : new[] { new ManifestFile { Path = "addme.script", Size = bytes } });
+        var plan = new ModSyncPlan(new[]
+        {
+            Item("BF1", ModSyncAction.New, 644_000_000),
+            Item("DLC_XBOX", ModSyncAction.Update, 12_600_000),
+            Item("KOTOR", ModSyncAction.Enable, 0),
+        });
+        _ = main.ConfirmAsync("Get the server's mods?", JoinServerViewModel.Describe("Friday Night Battles", plan), $"Download {Sizes.Format(plan.Bytes)} and join");
+        await Settle(300);
+        Save(window, Path.Combine(dir, "6b-join-mods.png"));
     }
 
     /// <summary>The Server manager's screens, against the sample map list and a simulated server.</summary>
@@ -111,6 +141,17 @@ internal static class Screenshots
         await control.StopNowAsync();
         control.Tab = ControlTab.Playlist;
         main.Setup.State.Server.Playlist.Clear();
+
+        // Connect to server as admin: the sign-in, then a server's mods next to this PC's
+        servers.Screen = ServerScreen.Landing;
+        await Settle(300);
+        SaveAs("3-servers-landing.png");
+        servers.Screen = ServerScreen.Remote;
+        await Settle(300);
+        SaveAs("3l-servers-admin-connect.png");
+        servers.Remote.ShowSample();
+        await Settle(300);
+        SaveAs("3m-servers-admin-mods.png");
         servers.Screen = ServerScreen.Landing;
     }
 
