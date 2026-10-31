@@ -106,7 +106,7 @@ public sealed class MapCatalog
                     if (missions.Count == 0) continue;
                     foreach (string era in missions.Keys.Where(k => eras.All(e => e.Id != k)))
                         eras.Add(new MapEra(era, eraNames.GetValueOrDefault(era) ?? era));
-                    modes.Add(new MapMode(id, Text(mode, "name") ?? modeNames.GetValueOrDefault(id) ?? id, missions));
+                    modes.Add(new MapMode(id, ModeName(id, Text(mode, "name") ?? modeNames.GetValueOrDefault(id)), missions));
                 }
                 if (modes.Count == 0) continue;
                 bool isMod = map.TryGetProperty("mod", out var mod) && mod.ValueKind == JsonValueKind.True;
@@ -115,6 +115,10 @@ public sealed class MapCatalog
             return new MapCatalog(Text(root, "language") ?? "english", maps);
         }
     }
+
+    /// <summary>The game calls both eli and ass "Assault"; eli is the heroes-only one.</summary>
+    private static string ModeName(string id, string? name) =>
+        id.Equals("eli", StringComparison.OrdinalIgnoreCase) ? "Hero Assault" : name ?? id;
 
     private static IEnumerable<JsonElement> Array(JsonElement element, string name) =>
         element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Array

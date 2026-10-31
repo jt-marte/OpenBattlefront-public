@@ -11,8 +11,11 @@ public sealed record ServerState(
     int Tickets1, int Tickets2, int Score1, int Score2, string Map, string Next);
 
 /// <summary>/playerinfo: one player. Slot is 1-based, as /kick and /swap take it; team 0 is
-/// still choosing.</summary>
-public sealed record PlayerInfo(int Slot, int Team, bool Alive, int Score, int Kills, int Deaths, int Ping, string Name);
+/// still choosing. The name can be empty (a headless client).</summary>
+public sealed record PlayerInfo(int Slot, int Team, bool Alive, int Score, int Kills, int Deaths, int Ping, string Name)
+{
+    public string DisplayName => string.IsNullOrWhiteSpace(Name) ? $"Player {Slot}" : Name;
+}
 
 /// <summary>/maplist: one rotation entry, 1-based.</summary>
 public sealed record RotationEntry(int Index, string Mission, int Tickets1, int Tickets2, bool IsCurrent, bool IsNext);

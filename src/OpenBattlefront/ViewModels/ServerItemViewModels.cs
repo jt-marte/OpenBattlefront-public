@@ -132,7 +132,7 @@ public sealed class PlayerRowViewModel
     }
 
     public PlayerInfo Info { get; }
-    public string Name => Info.Name;
+    public string Name => Info.DisplayName;
     public string Team => Info.Team switch { 1 => "Team 1", 2 => "Team 2", _ => "Choosing" };
     public int TeamNumber => Info.Team;
     public int Score => Info.Score;

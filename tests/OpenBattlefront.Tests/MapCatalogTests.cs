@@ -22,6 +22,10 @@ public class MapCatalogTests
        "eras":["g"],
        "modes":[{"id":"con","name":"Conquest","missions":{"g":"bes2g_con","x":"bad mission;"}},
                 {"id":"xl","name":"XL","missions":{"q":"bes2q_xl"}}]},
+      {"code":"AB1","file":"AB1%s_%s","name":"Abregado","mod":true,
+       "eras":[{"id":"k","name":"KotOR"}],
+       "modes":[{"id":"eli","key":"common.mode.eli","name":"Assault","missions":{"k":"AB1k_eli"}},
+                {"id":"ass","key":"common.mode.ass","name":"Assault","missions":{"k":"AB1k_ass"}}]},
       {"code":"nomodes","name":"Broken","mod":true,"eras":[],"modes":[]}
      ]}
     """;
@@ -32,7 +36,7 @@ public class MapCatalogTests
         var catalog = MapCatalog.Parse(Sample);
 
         Assert.Equal("english", catalog.Language);
-        Assert.Equal(new[] { "geo1", "kas2", "bes2" }, catalog.Maps.Select(m => m.Code));
+        Assert.Equal(new[] { "geo1", "kas2", "bes2", "AB1" }, catalog.Maps.Select(m => m.Code));
 
         var geo = catalog.Maps[0];
         Assert.False(geo.IsMod);
@@ -52,6 +56,10 @@ public class MapCatalogTests
 
         Assert.Equal("Kashyyyk: Beachhead · Clone Wars · Conquest", catalog.Find("KAS2C_CON")!.Title);
         Assert.True(catalog.Contains("bes2g_con"));
+
+        // Mod codes keep their case; eli and ass are both "Assault" in the game.
+        Assert.Equal("KotOR · Hero Assault", catalog.Find("ab1k_eli")!.Label);
+        Assert.Equal("Assault", catalog.Find("AB1k_ass")!.ModeName);
         Assert.False(catalog.Contains("bad mission;"));
     }
 
@@ -91,7 +99,7 @@ public class MapCatalogTests
         var store = new MapCatalogStore(layout, "0.2.0", FakeGame(calls));
 
         var first = await store.GetAsync(refresh: false, null, CancellationToken.None);
-        Assert.Equal(3, first.Maps.Count);
+        Assert.Equal(4, first.Maps.Count);
         Assert.Single(calls);
         Assert.StartsWith("-listmissions \"", calls[0]);
         Assert.Contains("\" -lang 0", calls[0]);

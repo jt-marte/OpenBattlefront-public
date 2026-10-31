@@ -12,10 +12,11 @@ public sealed record RconReply(byte Key, IReadOnlyList<string> Lines);
 /// <summary>
 /// The retail remote-admin wire format (NetAdmin.cpp ReceiveConsole, NetWire.cpp IsRconAuthorized).
 /// Every datagram starts with the packet header: type, group (16-bit LE), index, count (top bit
-/// set when compressed). A request (type 28) then carries plain bytes: the command ('s' hello,
-/// ')' heartbeat, 'J' line), a zero, the admin key, and for a line its length and text of up to
-/// 63 characters. A reply (type 29) carries a bit stream packed in little-endian 32-bit words:
-/// the key, then [1, length, text] per line, then 0.
+/// set when compressed). A request (type 28, a new group number each) then carries plain bytes:
+/// the command ('s' hello, ')' heartbeat, 'J' line), a zero, the admin key, and then nothing for
+/// a hello, a zero for a heartbeat, or a line's length and text of up to 63 characters. A reply
+/// (type 29) carries a bit stream packed in little-endian 32-bit words: the key, then
+/// [1, length, text] per line, then 0.
 /// </summary>
 public static class RconPacket
 {
@@ -33,17 +34,19 @@ public static class RconPacket
     /// <summary>Latin-1: the game narrows each character to one byte.</summary>
     private static readonly Encoding Text = Encoding.Latin1;
 
-    public static byte[] EncodeHello() => new byte[] { ConsoleType, 0, 0, 0, 1, Hello, 0, 0 };
+    public static byte[] EncodeHello(int group) => new byte[] { ConsoleType, (byte)group, (byte)(group >> 8), 0, 1, Hello, 0, 0 };
 
-    public static byte[] EncodeHeartbeat(byte key) => new byte[] { ConsoleType, 0, 0, 0, 1, Heartbeat, 0, key };
+    public static byte[] EncodeHeartbeat(int group, byte key) => new byte[] { ConsoleType, (byte)group, (byte)(group >> 8), 0, 1, Heartbeat, 0, key, 0 };
 
     /// <summary>A command line such as "/admin /state". Longer than 63 characters is refused,
     /// since the server cuts it.</summary>
-    public static byte[] EncodeLine(byte key, string line)
+    public static byte[] EncodeLine(int group, byte key, string line)
     {
         if (line.Length > LineMax) throw new ArgumentException($"An admin line is at most {LineMax} characters: {line}", nameof(line));
         var packet = new byte[HeaderSize + 4 + line.Length];
         packet[0] = ConsoleType;
+        packet[1] = (byte)group;
+        packet[2] = (byte)(group >> 8);
         packet[4] = 1;
         packet[5] = Line;
         packet[6] = 0;

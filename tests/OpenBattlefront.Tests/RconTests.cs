@@ -10,24 +10,25 @@ public class RconTests
 {
     // The 63-character line from OpenSWBF2 tests\net\roundtrip_netwire.cpp ("rcon line of 63
     // characters passes auth and decodes"): 'J', 0, key 'k', length 63 at offsets 5-8, then the
-    // text, after the 5-byte packet header.
+    // text, after the 5-byte packet header (type 28, the request's group, index 0, count 1).
     [Fact]
     public void A_63_character_line_matches_the_games_vector()
     {
         string text = new(Enumerable.Range(0, 63).Select(i => (char)('a' + i % 26)).ToArray());
-        byte[] packet = RconPacket.EncodeLine((byte)'k', text);
+        byte[] packet = RconPacket.EncodeLine(0x1234, (byte)'k', text);
 
-        var expected = new List<byte> { 28, 0, 0, 0, 1, (byte)'J', 0, (byte)'k', 63 };
+        var expected = new List<byte> { 28, 0x34, 0x12, 0, 1, (byte)'J', 0, (byte)'k', 63 };
         expected.AddRange(Encoding.ASCII.GetBytes(text));
         Assert.Equal(expected, packet);
-        Assert.Throws<ArgumentException>(() => RconPacket.EncodeLine((byte)'k', text + "x"));
+        Assert.Throws<ArgumentException>(() => RconPacket.EncodeLine(1, (byte)'k', text + "x"));
     }
 
+    // As OpenSWBF2's tests\rcon.ps1 sends them: a hello has no payload, a heartbeat one zero byte.
     [Fact]
-    public void Hello_and_heartbeat_are_eight_bytes()
+    public void Hello_and_heartbeat_match_the_games_client()
     {
-        Assert.Equal(new byte[] { 28, 0, 0, 0, 1, (byte)'s', 0, 0 }, RconPacket.EncodeHello());
-        Assert.Equal(new byte[] { 28, 0, 0, 0, 1, 0x29, 0, (byte)'z' }, RconPacket.EncodeHeartbeat((byte)'z'));
+        Assert.Equal(new byte[] { 28, 7, 0, 0, 1, (byte)'s', 0, 0 }, RconPacket.EncodeHello(7));
+        Assert.Equal(new byte[] { 28, 2, 1, 0, 1, 0x29, 0, (byte)'z', 0 }, RconPacket.EncodeHeartbeat(0x0102, (byte)'z'));
     }
 
     [Fact]
@@ -92,11 +93,14 @@ public class RconTests
 
         var players = RconReplies.ParsePlayers(new[]
         {
-            "#playerinfo", "p 1 1 1 25 5 2 31 Jay Tee", "p 4 0 0 0 0 0 120 New Player [OBF]", "more 9",
+            "#playerinfo", "p 1 1 1 25 5 2 31 Jay Tee", "p 4 0 0 0 0 0 120 New Player [OBF]", "p 5 2 0 0 0 0 7 ", "p 6 2 0 0 0 0 7", "more 9",
         });
         Assert.Equal(9, players.More);
         Assert.Equal(new PlayerInfo(1, 1, true, 25, 5, 2, 31, "Jay Tee"), players.Rows[0]);
         Assert.Equal("New Player [OBF]", players.Rows[1].Name);
+        // Headless clients have no name.
+        Assert.Equal(("", "Player 5"), (players.Rows[2].Name, players.Rows[2].DisplayName));
+        Assert.Equal(("", 7), (players.Rows[3].Name, players.Rows[3].Ping));
         Assert.Null(RconReplies.ParsePlayers(new[] { "#playerinfo", "end 0" }).More);
 
         var rotation = RconReplies.ParseRotation(new[]
@@ -152,7 +156,33 @@ public class RconTests
         Assert.Equal("kas2g_ctf", state.Next);
         lock (pushed) Assert.Equal(new[] { "Jay: hi admin" }, pushed);
         Assert.All(server.Lines, l => Assert.StartsWith("/admin ", l));
+        Assert.Equal(server.Groups.Count, server.Groups.Distinct().Count());
         Assert.Equal("/admin /login secret", server.Lines[0]);
+    }
+
+    [Fact]
+    public async Task A_late_answer_is_neither_a_reply_nor_a_push()
+    {
+        using var server = new FakeRconServer();
+        server.Handle = command => command switch
+        {
+            "/playerinfo" => new[] { "#playerinfo", "p 2 1 1 10 2 1 40 Jay", "end 1" },
+            "/endgame" => new[] { "ended" },
+            _ => null,
+        };
+        await using var client = new RconClient(server.EndPoint) { ReplyTimeout = TimeSpan.FromSeconds(1) };
+        var pushed = new List<string>();
+        client.Pushed += line => { lock (pushed) pushed.Add(line); };
+        await client.ConnectAsync("secret", CancellationToken.None);
+
+        const string late = "state=playing hold=1 players=0/0/0 time=-1 tickets=150/150 scores=0/0 map=kas2g_con next=hot1g_con";
+        server.GroupsBeforeReply.Add(new[] { "#state", late });
+        Assert.Equal("Jay", (await client.PlayersAsync()).Single().Name);
+
+        server.GroupsBeforeReply.Add(new[] { "#state", late });
+        Assert.Equal(new[] { "ended" }, await client.CommandAsync("/endgame"));
+        await Task.Delay(100);
+        lock (pushed) Assert.Empty(pushed);
     }
 
     [Fact]
@@ -263,7 +293,13 @@ internal sealed class FakeRconServer : IDisposable
     public bool HasSlot { get; set; }
     public int SplitAt { get; set; } = 1000;
     public List<string> Lines { get; } = new();
+
+    /// <summary>The group number of every request: the game wants a new one each time.</summary>
+    public List<int> Groups { get; } = new();
     public List<string> PushBeforeReply { get; } = new();
+
+    /// <summary>Whole reply groups sent before the next reply, like late answers to retries.</summary>
+    public List<string[]> GroupsBeforeReply { get; } = new();
     public Func<string, IEnumerable<string>?> Handle { get; set; } = _ => null;
 
     private async Task LoopAsync()
@@ -275,6 +311,7 @@ internal sealed class FakeRconServer : IDisposable
             catch (Exception) { return; }
             byte[] p = received.Buffer;
             if (p.Length < 7 || p[0] != RconPacket.ConsoleType) continue;
+            Groups.Add(p[1] | p[2] << 8);
             async Task Reply(IEnumerable<string> lines)
             {
                 foreach (byte[] part in Split(RconPacket.EncodeReply(_key, lines), SplitAt))
@@ -287,7 +324,7 @@ internal sealed class FakeRconServer : IDisposable
                     await Reply(new[] { "hello" });
                     break;
                 case ')':
-                    if (!keyOk) break;
+                    if (!keyOk || p.Length < 9) break;
                     HasSlot = true;
                     await Reply(Array.Empty<string>());
                     break;
@@ -307,6 +344,8 @@ internal sealed class FakeRconServer : IDisposable
                     {
                         foreach (string push in PushBeforeReply) await Reply(new[] { push });
                         PushBeforeReply.Clear();
+                        foreach (string[] group in GroupsBeforeReply) await Reply(group);
+                        GroupsBeforeReply.Clear();
                         reply = Handle(command)?.ToList() ?? new() { "done" };
                     }
                     _previousKey = _key;

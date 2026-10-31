@@ -27,6 +27,7 @@ public sealed class RconClient : IServerAdmin
     private Task? _receiving;
     private Task? _beating;
     private Pending? _pending;
+    private int _group = Random.Shared.Next(1, 60000);
     private byte _key;
     private string? _password;
 
@@ -60,7 +61,7 @@ public sealed class RconClient : IServerAdmin
     public async Task ConnectAsync(string password, CancellationToken ct)
     {
         _receiving ??= Task.Run(ReceiveLoopAsync);
-        await RequestAsync(_ => RconPacket.EncodeHello(), r => r.Lines.Contains("hello"), retry: true, ct);
+        await RequestAsync((group, _) => RconPacket.EncodeHello(group), r => r.Lines.Contains("hello"), retry: true, ct);
         await RequestAsync(RconPacket.EncodeHeartbeat, r => r.Lines.Count == 0, retry: true, ct);
         await LoginAsync(password, ct);
         _beating ??= Task.Run(HeartbeatLoopAsync);
@@ -157,13 +158,19 @@ public sealed class RconClient : IServerAdmin
     /// <summary>A retail command. Its reply is free text, so take the first group that isn't a
     /// pushed message; the commands that change the game are never retried.</summary>
     public Task<IReadOnlyList<string>> CommandAsync(string command, CancellationToken ct = default) =>
-        SendRawAsync(command, r => !RconReplies.LooksLikePush(r.Lines), retry: false, ct);
+        SendRawAsync(command, r => !IsLateAnswer(r) && !RconReplies.LooksLikePush(r.Lines), retry: false, ct);
 
     private static string Result(IReadOnlyList<string> lines, string command) =>
         RconReplies.Section(lines, command)?.FirstOrDefault() ?? "";
 
+    /// <summary>The reply with this command's "#tag" section, or (from a build without the
+    /// command) a plain refusal such as "command not found".</summary>
     private Task<IReadOnlyList<string>> TaggedAsync(string tag, string command, bool retry, CancellationToken ct) =>
-        SendRawAsync(command, r => RconReplies.HasSection(r.Lines, tag) || r.Lines.Count > 0 && !RconReplies.LooksLikePush(r.Lines), retry, ct);
+        SendRawAsync(command, r => RconReplies.HasSection(r.Lines, tag) || r.Lines.Count > 0 && !IsLateAnswer(r) && !RconReplies.LooksLikePush(r.Lines), retry, ct);
+
+    /// <summary>A "#command" reply nobody is waiting for: the answer to a request that timed out
+    /// (the server stalls while it loads a map, then answers every copy it was sent).</summary>
+    private static bool IsLateAnswer(RconReply reply) => reply.Lines.Count > 0 && reply.Lines[0].StartsWith('#');
 
     private async Task<IReadOnlyList<string>> SendRawAsync(string command, Func<RconReply, bool> isReply, bool retry, CancellationToken ct)
     {
@@ -172,7 +179,7 @@ public sealed class RconClient : IServerAdmin
         RconReply reply;
         try
         {
-            reply = await RequestAsync(key => RconPacket.EncodeLine(key, line), isReply, retry, ct);
+            reply = await RequestAsync((group, key) => RconPacket.EncodeLine(group, key, line), isReply, retry, ct);
         }
         catch (TimeoutException) when (canRelogin)
         {
@@ -180,12 +187,12 @@ public sealed class RconClient : IServerAdmin
             // it restarted). Take one again; a command that changes the game is not sent twice.
             await ReloginAsync(ct);
             if (!retry) throw;
-            reply = await RequestAsync(key => RconPacket.EncodeLine(key, line), isReply, retry, ct);
+            reply = await RequestAsync((group, key) => RconPacket.EncodeLine(group, key, line), isReply, retry, ct);
         }
         if (reply.Lines.Contains("not logged in") && canRelogin)
         {
             await ReloginAsync(ct);
-            reply = await RequestAsync(key => RconPacket.EncodeLine(key, line), isReply, retry, ct);
+            reply = await RequestAsync((group, key) => RconPacket.EncodeLine(group, key, line), isReply, retry, ct);
         }
         return reply.Lines;
     }
@@ -197,7 +204,8 @@ public sealed class RconClient : IServerAdmin
         await LoginAsync(_password!, ct);
     }
 
-    private async Task<RconReply> RequestAsync(Func<byte, byte[]> packet, Func<RconReply, bool> isReply, bool retry, CancellationToken ct)
+    /// <param name="packet">Builds the datagram from a new group number and the current key.</param>
+    private async Task<RconReply> RequestAsync(Func<int, byte, byte[]> packet, Func<RconReply, bool> isReply, bool retry, CancellationToken ct)
     {
         _receiving ??= Task.Run(ReceiveLoopAsync);
         await _gate.WaitAsync(ct);
@@ -207,7 +215,8 @@ public sealed class RconClient : IServerAdmin
             {
                 var pending = new Pending(isReply);
                 _pending = pending;
-                await _udp.SendAsync(packet(_key), ct);
+                _group = (_group + 1) & 0xFFFF;
+                await _udp.SendAsync(packet(_group, _key), ct);
                 var done = await Task.WhenAny(pending.Done.Task, Task.Delay(ReplyTimeout, ct));
                 ct.ThrowIfCancellationRequested();
                 if (done == pending.Done.Task) return await pending.Done.Task;
@@ -236,6 +245,7 @@ public sealed class RconClient : IServerAdmin
             _key = reply.Key;
             var pending = _pending;
             if (pending != null && pending.IsReply(reply) && pending.Done.TrySetResult(reply)) continue;
+            if (IsLateAnswer(reply)) continue;
             foreach (string line in reply.Lines) Pushed?.Invoke(line);
         }
     }

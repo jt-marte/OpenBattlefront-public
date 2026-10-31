@@ -30,6 +30,7 @@ public sealed class FakeServerAdmin : IServerAdmin
         new(6, 0, false, 0, 0, 0, 120, "NewRecruit"),
     };
     private int _current;
+    private string _running;
     private ServerPhase _phase = ServerPhase.Lobby;
     private bool _hold = true;
     private DateTime _phaseSince = DateTime.UtcNow;
@@ -39,6 +40,7 @@ public sealed class FakeServerAdmin : IServerAdmin
     {
         _rotation = profile.Playlist.Select(e => e.Clone()).ToList();
         if (_rotation.Count == 0) _rotation.Add(new PlaylistEntry { Mission = catalog.Maps[0].Missions[0].Mission });
+        _running = _rotation[0].Mission;
     }
 
     public event Action<string>? Pushed;
@@ -60,7 +62,7 @@ public sealed class FakeServerAdmin : IServerAdmin
         return Task.CompletedTask;
     }
 
-    private string Mission => _rotation[Math.Clamp(_current, 0, _rotation.Count - 1)].Mission;
+    private string Mission => _running;
     private int NextIndex => (_current + 1) % _rotation.Count;
     private double Elapsed => (DateTime.UtcNow - _phaseSince).TotalSeconds;
 
@@ -79,6 +81,7 @@ public sealed class FakeServerAdmin : IServerAdmin
     private void LoadNext(int index)
     {
         _current = index;
+        _running = _rotation[index].Mission;
         _phase = ServerPhase.Shell;
         _after = _hold ? ServerPhase.Lobby : ServerPhase.Playing;
         _phaseSince = DateTime.UtcNow;
@@ -108,13 +111,12 @@ public sealed class FakeServerAdmin : IServerAdmin
         Task.FromResult<IReadOnlyList<RotationEntry>>(_rotation.Select((e, i) =>
             new RotationEntry(i + 1, e.Mission, e.Tickets1 ?? 0, e.Tickets2 ?? 0, i == _current, i == NextIndex)).ToList());
 
+    /// <summary>As the game does it: the running map plays on, then the new list from its start.</summary>
     public Task SetRotationAsync(IEnumerable<PlaylistEntry> playlist, CancellationToken ct = default)
     {
-        var current = _rotation[_current];
         _rotation.Clear();
-        _rotation.Add(current);
         _rotation.AddRange(playlist.Select(e => e.Clone()));
-        _current = 0;
+        _current = -1;
         return Task.CompletedTask;
     }
 
@@ -145,14 +147,16 @@ public sealed class FakeServerAdmin : IServerAdmin
 
     public Task NextMapAsync(string mission, CancellationToken ct = default)
     {
-        int index = _rotation.FindIndex(NextIndex, e => e.Mission == mission);
+        int index = _rotation.FindIndex(e => string.Equals(e.Mission, mission, StringComparison.OrdinalIgnoreCase));
         LoadNext(index >= 0 ? index : NextIndex);
         return Task.CompletedTask;
     }
 
     public Task RestartAsync(CancellationToken ct = default)
     {
-        LoadNext(_current);
+        _phase = ServerPhase.Shell;
+        _after = _hold ? ServerPhase.Lobby : ServerPhase.Playing;
+        _phaseSince = DateTime.UtcNow;
         return Task.CompletedTask;
     }
 

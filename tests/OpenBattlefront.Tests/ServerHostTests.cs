@@ -48,11 +48,11 @@ public class ServerHostTests
     }
 
     [Fact]
-    public async Task Stop_asks_nicely_first()
+    public async Task Stop_closes_the_window_first()
     {
         using var temp = new TempDir();
         var (layout, profile) = Setup(temp);
-        var process = new FakeServerProcess();
+        var process = new FakeServerProcess { ExitOnClose = true };
         var host = new ServerHost(layout, _ => process);
         host.Start(profile);
 
@@ -60,34 +60,38 @@ public class ServerHostTests
         await host.StopAsync(() =>
         {
             shutdownSent = true;
-            process.Exit();
             return Task.CompletedTask;
         }, TimeSpan.FromMilliseconds(200));
 
-        Assert.True(shutdownSent);
-        Assert.Equal(new[] { "exit" }, process.Steps);
+        Assert.False(shutdownSent);
+        Assert.Equal(new[] { "close" }, process.Steps);
         Assert.False(host.IsRunning);
     }
 
     [Fact]
-    public async Task Stop_closes_the_window_then_kills()
+    public async Task Stop_falls_back_to_shutdown_then_kill()
     {
         using var temp = new TempDir();
         var (layout, profile) = Setup(temp);
-        var stubborn = new FakeServerProcess();
-        var host = new ServerHost(layout, _ => stubborn);
-        host.Start(profile);
 
+        // No window to close: /shutdown over rcon.
+        var windowless = new FakeServerProcess { HasWindow = false };
+        var host = new ServerHost(layout, _ => windowless);
+        host.Start(profile);
+        await host.StopAsync(() =>
+        {
+            windowless.Exit();
+            return Task.CompletedTask;
+        }, TimeSpan.FromMilliseconds(200));
+        Assert.Equal(new[] { "close", "exit" }, windowless.Steps);
+
+        // Neither works: kill it.
+        var stubborn = new FakeServerProcess();
+        host = new ServerHost(layout, _ => stubborn);
+        host.Start(profile);
         await host.StopAsync(() => throw new TimeoutException(), TimeSpan.FromMilliseconds(50));
         Assert.Equal(new[] { "close", "kill" }, stubborn.Steps);
         Assert.False(host.IsRunning);
-
-        // A server that closes on WM_CLOSE is not killed.
-        var polite = new FakeServerProcess { ExitOnClose = true };
-        host = new ServerHost(layout, _ => polite);
-        host.Start(profile);
-        await host.StopAsync(null, TimeSpan.FromMilliseconds(200));
-        Assert.Equal(new[] { "close" }, polite.Steps);
     }
 
     [Fact]
@@ -123,6 +127,7 @@ internal sealed class FakeServerProcess : IServerProcess
     private readonly TaskCompletionSource _exit = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public bool ExitOnClose { get; init; }
+    public bool HasWindow { get; init; } = true;
     public List<string> Steps { get; } = new();
 
     public int Id => 4242;
@@ -146,6 +151,7 @@ internal sealed class FakeServerProcess : IServerProcess
     public bool CloseWindow()
     {
         Steps.Add("close");
+        if (!HasWindow) return false;
         if (ExitOnClose)
         {
             _exit.TrySetResult();

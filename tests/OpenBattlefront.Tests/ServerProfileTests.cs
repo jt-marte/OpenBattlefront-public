@@ -170,7 +170,7 @@ public class ServerProfileTests
         Assert.Equal("/clearmaps", commands[0]);
         Assert.Equal(new[] { "/appendmap geo1c_con", "/appendmap kas2g_ctf 5 5" }, commands.Skip(2));
         Assert.All(commands, c => Assert.True(PlaylistCommands.FitsOneLine(c), c));
-        Assert.All(commands, c => RconPacket.EncodeLine(0x34, RconPacket.AdminPrefix + c));
+        Assert.All(commands, c => RconPacket.EncodeLine(1, 0x34, RconPacket.AdminPrefix + c));
         Assert.Throws<ArgumentException>(() => PlaylistCommands.ForRotation(new[] { new PlaylistEntry { Mission = "geo1c_con /shutdown" } }));
     }
 

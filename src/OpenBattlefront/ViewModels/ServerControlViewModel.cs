@@ -89,7 +89,6 @@ public sealed class ServerControlViewModel : ObservableObject
     /// <summary>Development and screenshots: a simulated server and the sample map list, no game.</summary>
     public bool UseFakeServer { get; set; }
 
-
     public ServerStatus Status
     {
         get => _status;
@@ -166,7 +165,6 @@ public sealed class ServerControlViewModel : ObservableObject
     public ICommand RestartMapCommand { get; }
     public ICommand BackToLobbyCommand { get; }
 
-
     public ControlTab Tab
     {
         get => _tab;
@@ -177,7 +175,6 @@ public sealed class ServerControlViewModel : ObservableObject
     }
 
     public ICommand SelectTabCommand { get; }
-
 
     public ObservableCollection<CatalogMapViewModel> Maps { get; } = new();
 
@@ -315,7 +312,6 @@ public sealed class ServerControlViewModel : ObservableObject
         if (expanded) _expanded.Add(code);
         else _expanded.Remove(code);
     }
-
 
     public ObservableCollection<PlaylistItemViewModel> Playlist { get; } = new();
 
@@ -457,12 +453,22 @@ public sealed class ServerControlViewModel : ObservableObject
         {
             await admin.SetRotationAsync(Profile.Playlist);
             PlaylistDirty = false;
-            _main.ShowNotice(Status is ServerStatus.Lobby or ServerStatus.Playing or ServerStatus.Warmup
-                ? "Playlist sent. The map being played stays; the new order follows it."
-                : "Playlist sent.");
-        });
+            string first = Profile.Playlist[0].Mission;
+            if (Status == ServerStatus.Lobby && _state != null && !string.Equals(_state.Map, first, StringComparison.OrdinalIgnoreCase))
+            {
+                // Nothing is being played yet: load the new first map. /changemap keeps the hold,
+                // so it waits in the lobby too.
+                await admin.NextMapAsync(first);
+                _main.ShowNotice($"Playlist sent. The lobby moves to {MapTitle(first)}.");
+            }
+            else
+            {
+                _main.ShowNotice(Status is ServerStatus.Playing or ServerStatus.Warmup
+                    ? "Playlist sent. The map being played stays; the new order follows it."
+                    : "Playlist sent.");
+            }
+        }, poll: true);
     }
-
 
     public ObservableCollection<PlayerRowViewModel> Players { get; } = new();
     public string PlayersTab => Players.Count == 0 ? "Players" : $"Players ({Players.Count})";
@@ -479,11 +485,11 @@ public sealed class ServerControlViewModel : ObservableObject
 
     internal async Task KickAsync(PlayerInfo player)
     {
-        if (!await _main.ConfirmAsync($"Kick {player.Name}?", "They can join again unless the server is full or passworded.", "Kick")) return;
+        if (!await _main.ConfirmAsync($"Kick {player.DisplayName}?", "They can join again unless the server is full or passworded.", "Kick")) return;
         await Guard(async admin =>
         {
             await admin.KickAsync(player.Slot);
-            AddMessage(ChatKind.Admin, $"Kicked {player.Name}.");
+            AddMessage(ChatKind.Admin, $"Kicked {player.DisplayName}.");
         });
         await PollAsync();
     }
@@ -493,7 +499,7 @@ public sealed class ServerControlViewModel : ObservableObject
         await Guard(async admin =>
         {
             await admin.SwapAsync(player.Slot);
-            AddMessage(ChatKind.Admin, $"Moved {player.Name} to the other team.");
+            AddMessage(ChatKind.Admin, $"Moved {player.DisplayName} to the other team.");
         });
         await PollAsync();
     }
@@ -501,13 +507,12 @@ public sealed class ServerControlViewModel : ObservableObject
     /// <summary>The game has no private messages: write to everyone, addressed to the player.</summary>
     internal void MessagePlayer(PlayerInfo player)
     {
-        SayText = $"{player.Name}: ";
+        SayText = $"{player.DisplayName}: ";
         Tab = ControlTab.Chat;
         SayFocusRequested?.Invoke(this, EventArgs.Empty);
     }
 
     public event EventHandler? SayFocusRequested;
-
 
     public ObservableCollection<ChatLine> Messages { get; } = new();
     public ICollectionView MessagesView { get; }
@@ -552,7 +557,6 @@ public sealed class ServerControlViewModel : ObservableObject
 
     public event EventHandler? MessageAdded;
 
-
     public ServerOptionsViewModel LiveOptions { get; }
     public ICommand ApplyOptionsCommand { get; }
 
@@ -573,7 +577,6 @@ public sealed class ServerControlViewModel : ObservableObject
             _main.ShowNotice("Options sent. They apply from the next map.");
         });
     }
-
 
     private async Task LaunchAsync()
     {
@@ -762,7 +765,6 @@ public sealed class ServerControlViewModel : ObservableObject
         }
         _main.Play.Refresh();
     }
-
 
     private async Task PollAsync()
     {

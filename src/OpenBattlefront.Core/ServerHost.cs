@@ -168,12 +168,14 @@ public sealed class ServerHost
         process.Exited += () => Exited?.Invoke();
     }
 
-    /// <summary>/shutdown over rcon first (when given), then WM_CLOSE to the server's window,
-    /// then kill it. Each step waits <paramref name="grace"/>.</summary>
+    /// <summary>WM_CLOSE to the server's window first: the dedicated server's own clean stop, done
+    /// in a frame. Then /shutdown over rcon (when given), then kill it. Each step waits
+    /// <paramref name="grace"/>. (/shutdown alone left a server in its lobby running, 2026-10-30.)</summary>
     public async Task StopAsync(Func<Task>? shutdown, TimeSpan grace)
     {
         var process = Process;
         if (process == null || process.HasExited) return;
+        if (process.CloseWindow() && await process.WaitForExitAsync(grace)) return;
         if (shutdown != null)
         {
             try
@@ -183,10 +185,9 @@ public sealed class ServerHost
             }
             catch (Exception e) when (e is TimeoutException or IOException or System.Net.Sockets.SocketException or InvalidOperationException)
             {
-                // Fall through to closing the window.
+                // Fall through to killing it.
             }
         }
-        if (process.CloseWindow() && await process.WaitForExitAsync(grace)) return;
         process.Kill();
         await process.WaitForExitAsync(grace);
     }
@@ -274,8 +275,16 @@ internal sealed class SystemServerProcess : IServerProcess
         }
     }
 
+    /// <summary>A headless server's window is message-only (HWND_MESSAGE), which EnumWindows
+    /// doesn't list; one with a renderer has a top-level window.</summary>
     public bool CloseWindow()
     {
+        var hwnd = IntPtr.Zero;
+        while ((hwnd = FindWindowEx(HWND_MESSAGE, hwnd, ServerHost.WindowClass, null)) != IntPtr.Zero)
+        {
+            GetWindowThreadProcessId(hwnd, out uint owner);
+            if (owner == (uint)_process.Id) return PostMessage(hwnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+        }
         bool posted = false;
         var className = new StringBuilder(64);
         EnumWindows((hwnd, _) =>
@@ -300,11 +309,15 @@ internal sealed class SystemServerProcess : IServerProcess
     public void Dispose() => _process.Dispose();
 
     private const uint WM_CLOSE = 0x0010;
+    private static readonly IntPtr HWND_MESSAGE = new(-3);
 
     private delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
 
     [DllImport("user32.dll")]
     private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string className, string? title);
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
