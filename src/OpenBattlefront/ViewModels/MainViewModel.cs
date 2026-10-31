@@ -19,6 +19,7 @@ public sealed class MainViewModel : ObservableObject
     private string _confirmText = "";
     private string _confirmOk = "OK";
     private string _confirmCancel = "Cancel";
+    private string? _confirmInput;
 
     public MainViewModel(GameSetup setup)
     {
@@ -129,6 +130,28 @@ public sealed class MainViewModel : ObservableObject
         _confirm = new TaskCompletionSource<bool>();
         Raise(nameof(ConfirmOpen));
         return _confirm.Task;
+    }
+
+    /// <summary>The dialog's text box, shown while AskAsync waits; null hides it.</summary>
+    public string? ConfirmInput
+    {
+        get => _confirmInput;
+        set
+        {
+            if (Set(ref _confirmInput, value)) Raise(nameof(ConfirmHasInput));
+        }
+    }
+
+    public bool ConfirmHasInput => ConfirmInput != null;
+
+    /// <summary>The dialog with a text box: what was typed, or null when cancelled.</summary>
+    public async Task<string?> AskAsync(string title, string text, string initial, string ok, string cancel = "Cancel")
+    {
+        ConfirmInput = initial;
+        bool yes = await ConfirmAsync(title, text, ok, cancel);
+        string? answer = ConfirmInput;
+        ConfirmInput = null;
+        return yes ? answer : null;
     }
 
     private void CloseConfirm(bool result)

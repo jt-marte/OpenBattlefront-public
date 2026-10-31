@@ -84,14 +84,28 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Player name" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="{Binding ProfilesNote}" Style="{StaticResource RowNote}" TextWrapping="Wrap" Margin="0,0,12,0" />
+                        </StackPanel>
+                        <TextBox Grid.Column="1" Style="{StaticResource Field}" Width="250" MaxLength="15"
+                                 Text="{Binding PlayerName, UpdateSourceTrigger=LostFocus}" />
+                    </Grid>
+                    <Rectangle Style="{StaticResource Divider}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="Extra arguments" Style="{StaticResource RowTitle}" />
                             <TextBlock Text="Added to every launch." Style="{StaticResource RowNote}" />
                         </StackPanel>
                         <TextBox Grid.Column="1" Style="{StaticResource Field}" Width="250" Text="{Binding ExtraArgs, UpdateSourceTrigger=LostFocus}" />
                     </Grid>
                     <Rectangle Style="{StaticResource Divider}" />
-                    <UniformGrid Columns="3">
+                    <UniformGrid Columns="2">
                         <CheckBox Style="{StaticResource Switch}" Content="Borderless window" IsChecked="{Binding Borderless}" />
+                        <CheckBox Style="{StaticResource Switch}" Content="Skip intro" IsChecked="{Binding SkipIntro}" />
                         <CheckBox Style="{StaticResource Switch}" Content="Minimise while playing" IsChecked="{Binding MinimiseWhilePlaying}" />
                         <CheckBox Style="{StaticResource Switch}" Content="Check for updates" IsChecked="{Binding CheckUpdatesOnStart}" />
                     </UniformGrid>

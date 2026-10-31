@@ -24,6 +24,13 @@ public sealed class LauncherState
     /// <summary>"game" uses the in-game setting; "vulkan" or "d3d9" override it for each run.</summary>
     public string Renderer { get; set; } = "game";
     public bool Borderless { get; set; } = true;
+
+    /// <summary>Skip the logos and legal screens at start (-nointro).</summary>
+    public bool SkipIntro { get; set; } = true;
+
+    /// <summary>The profile the game signs into, or makes (-name). Null until the launcher picks one
+    /// (PlayerProfiles.DefaultName); empty means the game's own profile screen.</summary>
+    public string? PlayerName { get; set; }
     public string ExtraArgs { get; set; } = "";
     public bool MinimiseWhilePlaying { get; set; } = true;
     public bool CheckUpdatesOnStart { get; set; } = true;

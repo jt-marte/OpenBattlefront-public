@@ -174,11 +174,15 @@ public class GameLauncherTests
     [Fact]
     public void Arguments()
     {
-        // borderless by default
-        Assert.Equal("-borderless", GameLauncher.BuildArguments(new LauncherState()));
-        Assert.Equal("", GameLauncher.BuildArguments(new LauncherState { Borderless = false }));
-        Assert.Equal("-vulkan -borderless", GameLauncher.BuildArguments(new LauncherState { Renderer = "vulkan", Borderless = true }));
-        Assert.Equal("-d3d9 /nointro", GameLauncher.BuildArguments(new LauncherState { Renderer = "d3d9", Borderless = false, ExtraArgs = "  /nointro " }));
+        // borderless and no intro by default
+        Assert.Equal("-borderless -nointro", GameLauncher.BuildArguments(new LauncherState()));
+        Assert.Equal("", GameLauncher.BuildArguments(new LauncherState { Borderless = false, SkipIntro = false }));
+        Assert.Equal("-vulkan -borderless -nointro", GameLauncher.BuildArguments(new LauncherState { Renderer = "vulkan", Borderless = true }));
+        Assert.Equal("-d3d9 /nolegal", GameLauncher.BuildArguments(new LauncherState { Renderer = "d3d9", Borderless = false, SkipIntro = false, ExtraArgs = "  /nolegal " }));
+        // the player's profile, quoted; an empty or bad name leaves the game's profile screen
+        Assert.Equal("-name \"Jay Tee\"", GameLauncher.BuildArguments(new LauncherState { Borderless = false, SkipIntro = false, PlayerName = "Jay Tee" }));
+        Assert.Equal("", GameLauncher.BuildArguments(new LauncherState { Borderless = false, SkipIntro = false, PlayerName = "" }));
+        Assert.Equal("", GameLauncher.BuildArguments(new LauncherState { Borderless = false, SkipIntro = false, PlayerName = "a\"b" }));
     }
 
     [Fact]
@@ -192,11 +196,56 @@ public class GameLauncherTests
         Assert.False(loaded.Borderless); // a player's choice is kept
         Assert.True(loaded.ImportComplete);
         Assert.DoesNotContain("layout", File.ReadAllText(file));
-        // a launcher.json from before the setting existed starts borderless
+        // a launcher.json from before the settings existed starts borderless, skips the intro and
+        // has no player name yet
         File.WriteAllText(file, """{ "installedVersion": "0.1.0" }""");
-        Assert.True(LauncherState.Load(file).Borderless);
+        var old = LauncherState.Load(file);
+        Assert.True(old.Borderless);
+        Assert.True(old.SkipIntro);
+        Assert.Null(old.PlayerName);
 
         File.WriteAllText(file, "{ broken");
         Assert.Null(LauncherState.Load(file).InstalledVersion);
+    }
+}
+
+public class PlayerProfilesTests
+{
+    [Theory]
+    [InlineData("Jt", true, false)]    // signs into an old profile; the game makes new ones of 3 or more
+    [InlineData("Jay", true, true)]
+    [InlineData("Jay Tee", true, true)]
+    [InlineData("SixteenCharsLong", false, false)]
+    [InlineData(" Jay", false, false)]
+    [InlineData("Ja\"y", false, false)]
+    [InlineData("[NULL]", false, false)]
+    [InlineData("Jösé", false, false)] // the command line takes plain ASCII
+    [InlineData("", false, false)]
+    public void Names_are_what_the_game_takes(string name, bool valid, bool create)
+    {
+        Assert.Equal(valid, PlayerProfiles.IsValid(name));
+        Assert.Equal(create, PlayerProfiles.CanCreate(name));
+    }
+
+    [Fact]
+    public void Profiles_are_listed_newest_first_and_give_the_default_name()
+    {
+        using var temp = new TempDir();
+        var layout = new InstallLayout(temp.Sub("L"));
+        Assert.Equal("Pat", PlayerProfiles.DefaultName(layout, "Pat"));    // nothing yet: the Windows name
+        Assert.Equal("Player", PlayerProfiles.DefaultName(layout, "Al")); // too short for the game
+        Assert.Equal("Patrick O'Brien", PlayerProfiles.DefaultName(layout, " Patrick O'Brien-Smythe "));
+
+        Directory.CreateDirectory(layout.SaveGames);
+        File.WriteAllText(Path.Combine(layout.SaveGames, "jt.profile"), "");
+        File.SetLastWriteTimeUtc(Path.Combine(layout.SaveGames, "jt.profile"), DateTime.UtcNow.AddDays(-1));
+        File.WriteAllText(Path.Combine(layout.SaveGames, "TestPilot.profile"), "");
+        File.WriteAllText(Path.Combine(layout.SaveGames, "[NULL].profile"), "");
+        Assert.Equal(new[] { "TestPilot", "jt" }, PlayerProfiles.List(layout));
+        Assert.Equal("TestPilot", PlayerProfiles.DefaultName(layout, "Pat"));
+        // a short name is fine when that profile is there
+        Assert.True(PlayerProfiles.CanUse(layout, "JT"));
+        Assert.False(PlayerProfiles.CanUse(layout, "Bo"));
+        Assert.True(PlayerProfiles.CanUse(layout, "Bob"));
     }
 }

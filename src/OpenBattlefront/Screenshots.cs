@@ -34,6 +34,10 @@ internal static class Screenshots
         _ = main.ConfirmAsync("Remove ABC?", "It goes to the Recycle Bin, so you can restore it from there.", "Remove");
         await Settle(300);
         Save(window, Path.Combine(dir, "5-overlays.png"));
+        _ = main.AskAsync("Choose your player name", "Your profile in the game, and your name online. 3 to 15 " +
+            "letters or numbers; Settings can change it later.", "Pat", "Play");
+        await Settle(300);
+        Save(window, Path.Combine(dir, "5b-player-name.png"));
     }
 
     /// <summary>The Server manager's screens, against the sample map list and a simulated server.</summary>

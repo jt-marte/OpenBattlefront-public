@@ -10,6 +10,8 @@ public static class GameLauncher
         if (state.Renderer == "vulkan") parts.Add("-vulkan");
         else if (state.Renderer == "d3d9") parts.Add("-d3d9");
         if (state.Borderless) parts.Add("-borderless");
+        if (state.SkipIntro) parts.Add("-nointro");
+        if (PlayerProfiles.IsValid(state.PlayerName)) parts.Add($"-name \"{state.PlayerName}\"");
         if (!string.IsNullOrWhiteSpace(state.ExtraArgs)) parts.Add(state.ExtraArgs.Trim());
         return string.Join(' ', parts);
     }

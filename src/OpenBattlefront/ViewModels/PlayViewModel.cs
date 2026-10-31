@@ -355,10 +355,37 @@ public sealed class PlayViewModel : ObservableObject
         if (dialog.ShowDialog() == true) _ = InstallFromFileAsync(dialog.FileName);
     }
 
-    private void Launch()
+    /// <summary>Before the first start: the player's newest profile, or a name they choose for the game
+    /// to make one with. False when they cancel.</summary>
+    private async Task<bool> ChoosePlayerNameAsync()
+    {
+        string? name = PlayerProfiles.List(Setup.Layout).FirstOrDefault();
+        string suggestion = PlayerProfiles.DefaultName(Setup.Layout, Environment.UserName);
+        while (name == null)
+        {
+            string? answer = await _main.AskAsync("Choose your player name",
+                $"Your profile in the game, and your name online. {PlayerProfiles.MinLength} to {PlayerProfiles.MaxLength} " +
+                "letters or numbers; Settings can change it later.", suggestion, "Play");
+            if (answer == null) return false;
+            answer = answer.Trim();
+            if (PlayerProfiles.CanCreate(answer)) name = answer;
+            else
+            {
+                suggestion = answer;
+                _main.ShowNotice($"A player name is {PlayerProfiles.MinLength} to {PlayerProfiles.MaxLength} letters or numbers.", error: true);
+            }
+        }
+        Setup.State.PlayerName = name;
+        Setup.Save();
+        _main.Settings.Refresh();
+        return true;
+    }
+
+    private async void Launch()
     {
         try
         {
+            if (Setup.State.PlayerName == null && !await ChoosePlayerNameAsync()) return;
             var game = GameLauncher.Start(Setup.Layout, Setup.State);
             _game = game;
             IsGameRunning = true;

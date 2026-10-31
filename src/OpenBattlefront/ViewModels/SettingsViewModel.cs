@@ -58,6 +58,45 @@ public sealed class SettingsViewModel : ObservableObject
         }
     }
 
+    public bool SkipIntro
+    {
+        get => State.SkipIntro;
+        set
+        {
+            State.SkipIntro = value;
+            Save();
+        }
+    }
+
+    /// <summary>The profile the game signs into; empty shows the game's own profile screen.</summary>
+    public string PlayerName
+    {
+        get => State.PlayerName ?? PlayerProfiles.DefaultName(Layout, Environment.UserName);
+        set
+        {
+            string name = value.Trim();
+            if (name.Length > 0 && !PlayerProfiles.CanUse(Layout, name))
+            {
+                _main.ShowNotice($"A new player name is {PlayerProfiles.MinLength} to {PlayerProfiles.MaxLength} letters or numbers.", error: true);
+                Raise(nameof(PlayerName));
+                return;
+            }
+            State.PlayerName = name;
+            Save();
+        }
+    }
+
+    public string ProfilesNote
+    {
+        get
+        {
+            var profiles = PlayerProfiles.List(Layout);
+            return profiles.Count == 0
+                ? "Your profile in the game, and your name online. Leave empty to pick in the game."
+                : "Your profile in the game. Yours: " + string.Join(", ", profiles.Take(5)) + ". Leave empty to pick in the game.";
+        }
+    }
+
     public string ExtraArgs
     {
         get => State.ExtraArgs;
@@ -107,7 +146,8 @@ public sealed class SettingsViewModel : ObservableObject
         foreach (string name in new[]
         {
             nameof(InstalledBuild), nameof(CanRollBack), nameof(RollBackLabel), nameof(InstallFolder), nameof(CanChangeFolder),
-            nameof(ImportedFrom), nameof(Renderer), nameof(Borderless), nameof(ExtraArgs), nameof(MinimiseWhilePlaying), nameof(CheckUpdatesOnStart),
+            nameof(ImportedFrom), nameof(Renderer), nameof(Borderless), nameof(SkipIntro), nameof(PlayerName), nameof(ProfilesNote),
+            nameof(ExtraArgs), nameof(MinimiseWhilePlaying), nameof(CheckUpdatesOnStart),
         })
             Raise(name);
         CommandManager.InvalidateRequerySuggested();
