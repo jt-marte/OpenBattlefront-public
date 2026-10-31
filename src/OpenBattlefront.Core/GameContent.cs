@@ -115,7 +115,8 @@ public sealed class GameContent
     private const string Title = "Adding the included content";
     private const string DownloadAgain = "Download the launcher package again.";
     private const long SpareBytes = 512L << 20;
-    private static readonly string[] Programs = { ".exe", ".dll", ".bat" };
+    /// <summary>Never copied, downloaded or uploaded; the same list as the Docker server's modserver.py.</summary>
+    private static readonly string[] Programs = { ".exe", ".dll", ".bat", ".cmd", ".com", ".scr", ".msi", ".ps1", ".vbs" };
     private readonly Action<string> _remove;
 
     /// <param name="remove">How a folder being replaced goes away; the Recycle Bin by default.</param>

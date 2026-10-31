@@ -2,9 +2,13 @@ using System.Diagnostics;
 
 namespace OpenBattlefront.Core;
 
+/// <summary>A server for the game to join as it starts (-connect), with its join password.</summary>
+public sealed record JoinTarget(ServerAddress Server, string? Password = null);
+
 public static class GameLauncher
 {
-    public static string BuildArguments(LauncherState state)
+    /// <param name="join">Opens the game straight into joining that server.</param>
+    public static string BuildArguments(LauncherState state, JoinTarget? join = null)
     {
         var parts = new List<string>();
         if (state.Renderer == "vulkan") parts.Add("-vulkan");
@@ -12,16 +16,21 @@ public static class GameLauncher
         if (state.Borderless) parts.Add("-borderless");
         if (state.SkipIntro) parts.Add("-nointro");
         if (PlayerProfiles.IsValid(state.PlayerName)) parts.Add($"-name \"{state.PlayerName}\"");
+        if (join != null)
+        {
+            parts.Add($"-connect {join.Server.ConnectArg}");
+            if (JoinPasswords.IsValid(join.Password)) parts.Add($"-password {join.Password}");
+        }
         if (!string.IsNullOrWhiteSpace(state.ExtraArgs)) parts.Add(state.ExtraArgs.Trim());
         return string.Join(' ', parts);
     }
 
     /// <summary>Starts the game from Game\, its working directory, where it finds data\, AddOn\ and SaveGames\.</summary>
-    public static Process Start(InstallLayout layout, LauncherState state)
+    public static Process Start(InstallLayout layout, LauncherState state, JoinTarget? join = null)
     {
         if (!File.Exists(layout.GameExe)) throw new FileNotFoundException("The game is not installed yet.", layout.GameExe);
         if (!layout.HasCoreLvls) throw new InvalidOperationException("The core game files are missing. Use Settings > Rebuild core files.");
-        var info = new ProcessStartInfo(layout.GameExe, BuildArguments(state))
+        var info = new ProcessStartInfo(layout.GameExe, BuildArguments(state, join))
         {
             WorkingDirectory = layout.Game,
             UseShellExecute = false,

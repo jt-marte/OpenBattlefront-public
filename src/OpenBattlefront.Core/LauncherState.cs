@@ -52,6 +52,30 @@ public sealed class LauncherState
     /// <summary>A server left running when the launcher closed, to attach to again.</summary>
     public ServerSession? RunningServer { get; set; }
 
+    /// <summary>Servers joined from Play > Join a server, newest first.</summary>
+    public List<RecentServer> RecentServers { get; set; } = new();
+
+    /// <summary>The server last managed from Server manager > Connect to server as admin.</summary>
+    public RemoteAdminProfile? RemoteAdmin { get; set; }
+
+    public const int MaxRecentServers = 8;
+
+    /// <summary>Puts a joined server first in the recent list, keeping its name and password.</summary>
+    public void RememberServer(ServerAddress server, string? name, string? joinPassword)
+    {
+        string address = server.ToString();
+        var old = RecentServers.FirstOrDefault(s => string.Equals(s.Address, address, StringComparison.OrdinalIgnoreCase));
+        RecentServers.RemoveAll(s => string.Equals(s.Address, address, StringComparison.OrdinalIgnoreCase));
+        RecentServers.Insert(0, new RecentServer
+        {
+            Address = address,
+            Name = string.IsNullOrWhiteSpace(name) ? old?.Name ?? "" : name.Trim(),
+            JoinPassword = joinPassword ?? "",
+            LastJoined = DateTime.UtcNow,
+        });
+        if (RecentServers.Count > MaxRecentServers) RecentServers.RemoveRange(MaxRecentServers, RecentServers.Count - MaxRecentServers);
+    }
+
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
@@ -83,4 +107,20 @@ public sealed class LauncherState
         File.WriteAllText(temp, JsonSerializer.Serialize(this, Options));
         File.Move(temp, file, overwrite: true);
     }
+}
+
+/// <summary>A server in Join a server's recent list. The join password is kept as the host's admin
+/// password is (ServerProfile), in launcher.json.</summary>
+public sealed class RecentServer
+{
+    public string Address { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string JoinPassword { get; set; } = "";
+    public DateTime LastJoined { get; set; }
+}
+
+public sealed class RemoteAdminProfile
+{
+    public string Address { get; set; } = "";
+    public string AdminPassword { get; set; } = "";
 }
