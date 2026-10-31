@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -41,6 +42,20 @@ public partial class MainWindow : Window
     private void OnMinimise(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
+
+    private bool _askedToClose;
+
+    /// <summary>Closing while hosting asks whether to stop the server or leave it running.</summary>
+    protected override async void OnClosing(CancelEventArgs e)
+    {
+        base.OnClosing(e);
+        if (_askedToClose || DataContext is not MainViewModel main || !main.Servers.Control.IsRunning) return;
+        e.Cancel = true;
+        if (main.ConfirmOpen) return;
+        await main.BeforeCloseAsync();
+        _askedToClose = true;
+        Close();
+    }
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);

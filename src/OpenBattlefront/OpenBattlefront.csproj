@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\app.ico" />
+    <EmbeddedResource Include="Assets\sample-missions.json" LogicalName="OpenBattlefront.Assets.sample-missions.json" />
     <Using Include="System.IO" />
     <Using Include="System.Net.Http" />
   </ItemGroup>

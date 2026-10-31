@@ -39,6 +39,12 @@ public sealed class LauncherState
 
     public string UpdateRepo { get; set; } = "jt-marte/OpenSWBF2";
 
+    /// <summary>The Server manager's host settings and playlist.</summary>
+    public ServerProfile Server { get; set; } = new();
+
+    /// <summary>A server left running when the launcher closed, to attach to again.</summary>
+    public ServerSession? RunningServer { get; set; }
+
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,

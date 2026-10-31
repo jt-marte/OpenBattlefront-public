@@ -1,0 +1,882 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Net;
+using System.Windows;
+using System.Windows.Data;
+using System.Windows.Input;
+using System.Windows.Threading;
+using OpenBattlefront.Core;
+using OpenBattlefront.Core.Rcon;
+
+namespace OpenBattlefront.ViewModels;
+
+public enum ServerStatus { NotRunning, Starting, Loading, Lobby, Warmup, Playing, Results, Stopping }
+public enum ControlTab { Playlist, Players, Chat, Options }
+public enum CatalogStatus { Idle, Loading, Ready, NeedsUpdate, NotInstalled, Failed }
+
+/// <summary>
+/// The playlist and control screen: the map catalog, the playlist, the server's status and
+/// match controls, players, chat and the options that apply from the next map. Hosting starts
+/// the server here; "Connect as admin" will reuse it for a remote server.
+/// </summary>
+public sealed class ServerControlViewModel : ObservableObject
+{
+    public static readonly TimeSpan StartTimeout = TimeSpan.FromSeconds(120);
+
+    private readonly MainViewModel _main;
+    private readonly ServersViewModel _servers;
+    private readonly ServerHost _host;
+    private readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromSeconds(2) };
+    private readonly HashSet<string> _expanded = new(StringComparer.OrdinalIgnoreCase);
+    private IServerAdmin? _admin;
+    private MapCatalog? _catalog;
+    private CatalogStatus _catalogStatus;
+    private string _catalogMessage = "";
+    private string _search = "";
+    private bool _showStock = true;
+    private bool _showMods = true;
+    private ServerStatus _status;
+    private ServerState? _state;
+    private ControlTab _tab;
+    private bool _playlistDirty;
+    private bool _playlistDragHover;
+    private PlaylistItemViewModel? _selectedEntry;
+    private string _sayText = "";
+    private bool _showServerLog = true;
+    private bool _polling;
+    private int _pollCount;
+    private bool _stopRequested;
+    private bool _quietExit;
+    private bool _busy;
+
+    public ServerControlViewModel(MainViewModel main, ServersViewModel servers)
+    {
+        _main = main;
+        _servers = servers;
+        _host = new ServerHost(main.Setup.Layout);
+        _host.LineReceived += line => Ui(() => OnServerLine(line));
+        _host.Exited += () => Ui(OnServerExited);
+        _poll.Tick += async (_, _) => await PollAsync();
+
+        LiveOptions = new ServerOptionsViewModel(main, live: true) { ServerLocked = true };
+        MessagesView = CollectionViewSource.GetDefaultView(Messages);
+        MessagesView.Filter = m => ShowServerLog || ((ChatLine)m).Kind != ChatKind.Log;
+
+        LaunchCommand = new RelayCommand(() => _ = LaunchAsync(), () => CanLaunch);
+        StopCommand = new RelayCommand(() => _ = StopAsync(), () => IsRunning && Status != ServerStatus.Stopping);
+        StartMatchCommand = new RelayCommand(() => Run(a => a.StartAsync(), "Match started."), () => CanControl && Status == ServerStatus.Lobby);
+        EndMatchCommand = new RelayCommand(() => Run(a => a.EndMatchAsync(), "Match ended; the next map loads."), () => CanControl && Status is ServerStatus.Playing or ServerStatus.Warmup);
+        NextMapCommand = new RelayCommand(() => Run(a => a.NextMapAsync(_state?.Next ?? ""), "Going to the next map."), () => CanControl && Status is ServerStatus.Lobby or ServerStatus.Playing or ServerStatus.Warmup or ServerStatus.Results);
+        RestartMapCommand = new RelayCommand(() => Run(a => a.RestartAsync(), "Restarting the map."), () => CanControl && Status is ServerStatus.Playing or ServerStatus.Warmup);
+        BackToLobbyCommand = new RelayCommand(() => _ = BackToLobbyAsync(), () => CanControl && Status is ServerStatus.Playing or ServerStatus.Warmup or ServerStatus.Results);
+
+        RefreshMapsCommand = new RelayCommand(() => _ = LoadCatalogAsync(refresh: true), () => CatalogStatus != CatalogStatus.Loading && !Activity.IsBusy);
+        CheckUpdatesCommand = new RelayCommand(() => _main.Page = Page.Settings);
+        ApplyPlaylistCommand = new RelayCommand(() => _ = ApplyPlaylistAsync(), () => CanControl && PlaylistDirty && Playlist.Count > 0);
+        ShufflePlaylistCommand = new RelayCommand(Shuffle, () => Playlist.Count > 1);
+        ClearPlaylistCommand = new RelayCommand(() => _ = ClearPlaylistAsync(), () => Playlist.Count > 0);
+        RemoveSelectedCommand = new RelayCommand(() => { if (SelectedEntry != null) Remove(SelectedEntry); }, () => SelectedEntry != null);
+        MoveSelectedUpCommand = new RelayCommand(() => MoveSelected(-1), () => SelectedEntry != null && Playlist.IndexOf(SelectedEntry) > 0);
+        MoveSelectedDownCommand = new RelayCommand(() => MoveSelected(1), () => SelectedEntry != null && Playlist.IndexOf(SelectedEntry) < Playlist.Count - 1);
+        SayCommand = new RelayCommand(() => _ = SayAsync(), () => CanControl && SayText.Trim().Length > 0);
+        ApplyOptionsCommand = new RelayCommand(() => _ = ApplyOptionsAsync(), () => CanControl && LiveOptions.IsDirty);
+        SelectTabCommand = new RelayCommand(p => Tab = Enum.Parse<ControlTab>((string)p!));
+    }
+
+    private ActivityViewModel Activity => _main.Activity;
+    private ServerProfile Profile => _main.Setup.State.Server;
+
+    /// <summary>Development and screenshots: a simulated server and the sample map list, no game.</summary>
+    public bool UseFakeServer { get; set; }
+
+
+    public ServerStatus Status
+    {
+        get => _status;
+        private set
+        {
+            if (!Set(ref _status, value)) return;
+            Raise(nameof(IsRunning));
+            Raise(nameof(StatusText));
+            Raise(nameof(StatusDetail));
+            Raise(nameof(ShowLaunch));
+            Raise(nameof(ShowPlaylistScreen));
+            if (_main.Servers != null) _main.Servers.Options.ServerLocked = IsRunning;
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    public bool IsRunning => Status != ServerStatus.NotRunning;
+    public bool ShowLaunch => !IsRunning;
+
+    /// <summary>The hosted server's process, so the Play page doesn't take it for the game.</summary>
+    public int? ServerProcessId => _host.IsRunning ? _host.Process?.Id : null;
+
+    private bool CanControl => _admin is { IsLoggedIn: true } && !_busy;
+
+    private bool CanLaunch =>
+        !IsRunning && !Activity.IsBusy && Playlist.Count > 0 && (UseFakeServer || CatalogStatus == CatalogStatus.Ready);
+
+    public string StatusText => Status switch
+    {
+        ServerStatus.NotRunning => "Not running",
+        ServerStatus.Starting => "Starting",
+        ServerStatus.Loading => "Loading",
+        ServerStatus.Lobby => "Lobby",
+        ServerStatus.Warmup => "Warm-up",
+        ServerStatus.Playing => "Playing",
+        ServerStatus.Results => "Results",
+        _ => "Stopping",
+    };
+
+    public string StatusDetail
+    {
+        get
+        {
+            var s = _state;
+            string map = s == null ? "" : MapTitle(s.Map);
+            return Status switch
+            {
+                ServerStatus.NotRunning => Playlist.Count == 0 ? "Drag maps into the playlist, then launch." : $"{Playlist.Count} {(Playlist.Count == 1 ? "map" : "maps")} in the playlist.",
+                ServerStatus.Starting => "Waiting for the server to load. Windows may ask to let BattlefrontII.exe through the firewall: that's the server.",
+                ServerStatus.Loading => map.Length > 0 ? $"Loading {map}" : "Loading the next map",
+                ServerStatus.Lobby when s != null => $"{Plural(s.Players, "player")} waiting on {map}. Start the match when everyone's in.",
+                ServerStatus.Warmup when s != null => $"{map} · starting in {Clock(s.TimeLeft)}",
+                ServerStatus.Playing when s != null => $"{map} · {(s.TimeLeft >= 0 ? Clock(s.TimeLeft) + " left · " : "")}{Plural(s.Players, "player")} · tickets {s.Tickets1}/{s.Tickets2}",
+                ServerStatus.Results when s != null => $"Match over on {map}" + (s.Next.Length > 0 ? $" · next {MapTitle(s.Next)}" : ""),
+                ServerStatus.Stopping => "Closing the server",
+                _ => "",
+            };
+        }
+    }
+
+    public string ServerSummary => $"{Profile.Name}  ·  port {Profile.Port}  ·  {Profile.TickRate} Hz  ·  {Profile.MaxPlayers} players  ·  {Profile.DifficultyName} AI";
+
+    private static string Plural(int n, string word) => $"{n} {word}{(n == 1 ? "" : "s")}";
+    private static string Clock(int seconds) => seconds < 0 ? "--:--" : $"{seconds / 60}:{seconds % 60:00}";
+
+    private string MapTitle(string mission) =>
+        _catalog?.Find(mission) is { } c ? $"{c.MapName} · {c.ModeName}" : mission;
+
+    public ICommand LaunchCommand { get; }
+    public ICommand StopCommand { get; }
+    public ICommand StartMatchCommand { get; }
+    public ICommand EndMatchCommand { get; }
+    public ICommand NextMapCommand { get; }
+    public ICommand RestartMapCommand { get; }
+    public ICommand BackToLobbyCommand { get; }
+
+
+    public ControlTab Tab
+    {
+        get => _tab;
+        set
+        {
+            if (Set(ref _tab, value) && value == ControlTab.Players) _ = PollAsync();
+        }
+    }
+
+    public ICommand SelectTabCommand { get; }
+
+
+    public ObservableCollection<CatalogMapViewModel> Maps { get; } = new();
+
+    public CatalogStatus CatalogStatus
+    {
+        get => _catalogStatus;
+        private set
+        {
+            if (!Set(ref _catalogStatus, value)) return;
+            Raise(nameof(CatalogReady));
+            Raise(nameof(ShowPlaylistScreen));
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    public bool CatalogReady => CatalogStatus == CatalogStatus.Ready;
+
+    /// <summary>The playlist works without a catalog only while the server runs (it was started
+    /// before), or with the fake server.</summary>
+    public bool ShowPlaylistScreen => CatalogStatus is not (CatalogStatus.NeedsUpdate or CatalogStatus.NotInstalled) || IsRunning;
+
+    public string CatalogMessage { get => _catalogMessage; private set => Set(ref _catalogMessage, value); }
+
+    public string Search
+    {
+        get => _search;
+        set
+        {
+            if (Set(ref _search, value)) FilterMaps();
+        }
+    }
+
+    public bool ShowStock
+    {
+        get => _showStock;
+        set
+        {
+            if (Set(ref _showStock, value)) FilterMaps();
+        }
+    }
+
+    public bool ShowMods
+    {
+        get => _showMods;
+        set
+        {
+            if (Set(ref _showMods, value)) FilterMaps();
+        }
+    }
+
+    public string CatalogCount => _catalog == null ? "" : $"{Maps.Count} of {_catalog.Maps.Count} maps";
+
+    public ICommand RefreshMapsCommand { get; }
+    public ICommand CheckUpdatesCommand { get; }
+
+    public void Refresh()
+    {
+        if (_catalog == null && CatalogStatus is CatalogStatus.Idle or CatalogStatus.Failed or CatalogStatus.NotInstalled or CatalogStatus.NeedsUpdate)
+            _ = LoadCatalogAsync(refresh: false);
+        if (Playlist.Count != Profile.Playlist.Count) LoadPlaylist();
+        Raise(nameof(ServerSummary));
+        Raise(nameof(StatusDetail));
+        LiveOptions.Refresh();
+    }
+
+    public async Task LoadCatalogAsync(bool refresh)
+    {
+        if (UseFakeServer)
+        {
+            SetCatalog(SampleCatalog.Load());
+            return;
+        }
+        if (!_main.Setup.IsReady)
+        {
+            CatalogStatus = CatalogStatus.NotInstalled;
+            CatalogMessage = "Import your game and install OpenSWBF2 on the Play page first.";
+            return;
+        }
+        var store = new MapCatalogStore(_main.Setup.Layout, _main.Setup.State.InstalledVersion);
+        bool supported;
+        try { supported = await Task.Run(() => store.GameSupportsListing); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { supported = false; }
+        if (!supported)
+        {
+            CatalogStatus = CatalogStatus.NeedsUpdate;
+            CatalogMessage = $"OpenSWBF2 {_main.Setup.State.InstalledVersion} can't list its maps for the launcher yet. A newer build can.";
+            return;
+        }
+        if (!refresh && await Task.Run(store.TryLoadCached) is { } cached)
+        {
+            SetCatalog(cached);
+            return;
+        }
+
+        CatalogStatus = CatalogStatus.Loading;
+        CatalogMessage = "Reading the map list from the game…";
+        MapCatalog? built = null;
+        var error = await Activity.RunAsync("Reading the map list", async (progress, ct) => built = await store.BuildAsync(progress, ct), cancellable: true);
+        if (built != null)
+        {
+            SetCatalog(built);
+            if (refresh) _main.ShowNotice($"Found {built.Maps.Count} maps.");
+            return;
+        }
+        CatalogStatus = CatalogStatus.Failed;
+        CatalogMessage = error is OperationCanceledException ? "Cancelled." : error?.Message ?? "The map list is empty.";
+    }
+
+    public void SetCatalog(MapCatalog catalog)
+    {
+        _catalog = catalog;
+        CatalogStatus = CatalogStatus.Ready;
+        CatalogMessage = "";
+        FilterMaps();
+        LoadPlaylist();
+    }
+
+    private void FilterMaps()
+    {
+        Maps.Clear();
+        if (_catalog == null) return;
+        string[] words = Search.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var map in _catalog.Maps.OrderBy(m => m.IsMod).ThenBy(m => m.Name, StringComparer.CurrentCultureIgnoreCase))
+        {
+            if (map.IsMod ? !ShowMods : !ShowStock) continue;
+            string haystack = $"{map.Name} {map.Code} {string.Join(' ', map.Missions.Select(c => c.Label + " " + c.Mission))}";
+            if (!words.All(w => haystack.Contains(w, StringComparison.CurrentCultureIgnoreCase))) continue;
+            Maps.Add(new CatalogMapViewModel(this, map, _expanded.Contains(map.Code) || words.Length > 0));
+        }
+        Raise(nameof(CatalogCount));
+    }
+
+    internal void SetExpanded(string code, bool expanded)
+    {
+        if (expanded) _expanded.Add(code);
+        else _expanded.Remove(code);
+    }
+
+
+    public ObservableCollection<PlaylistItemViewModel> Playlist { get; } = new();
+
+    public PlaylistItemViewModel? SelectedEntry { get => _selectedEntry; set => Set(ref _selectedEntry, value); }
+
+    /// <summary>The playlist changed since it was sent to the running server.</summary>
+    public bool PlaylistDirty
+    {
+        get => _playlistDirty;
+        private set
+        {
+            if (Set(ref _playlistDirty, value)) CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    public bool PlaylistDragHover { get => _playlistDragHover; set => Set(ref _playlistDragHover, value); }
+
+    public bool PlaylistEmpty => Playlist.Count == 0;
+
+    public string PlaylistCount => Playlist.Count == 0 ? "" : Plural(Playlist.Count, "map");
+
+    public ICommand ApplyPlaylistCommand { get; }
+    public ICommand ShufflePlaylistCommand { get; }
+    public ICommand ClearPlaylistCommand { get; }
+    public ICommand RemoveSelectedCommand { get; }
+    public ICommand MoveSelectedUpCommand { get; }
+    public ICommand MoveSelectedDownCommand { get; }
+
+    private void LoadPlaylist()
+    {
+        Playlist.Clear();
+        foreach (var entry in Profile.Playlist) Playlist.Add(new PlaylistItemViewModel(this, entry, _catalog?.Find(entry.Mission), _catalog != null));
+        AfterPlaylistChange(save: false);
+        PlaylistDirty = false;
+        MarkCurrent();
+    }
+
+    public void AddMissions(IEnumerable<MissionChoice> choices, int index = -1)
+    {
+        if (index < 0 || index > Playlist.Count) index = Playlist.Count;
+        PlaylistItemViewModel? last = null;
+        foreach (var choice in choices)
+        {
+            var entry = new PlaylistEntry { Mission = choice.Mission, Title = choice.Title };
+            last = new PlaylistItemViewModel(this, entry, choice, catalogLoaded: true);
+            Playlist.Insert(index++, last);
+        }
+        if (last == null) return;
+        SelectedEntry = last;
+        AfterPlaylistChange();
+    }
+
+    public void MoveEntry(PlaylistItemViewModel item, int index)
+    {
+        int from = Playlist.IndexOf(item);
+        if (from < 0) return;
+        if (index > from) index--;
+        index = Math.Clamp(index, 0, Playlist.Count - 1);
+        if (index == from) return;
+        Playlist.Move(from, index);
+        SelectedEntry = item;
+        AfterPlaylistChange();
+    }
+
+    private void MoveSelected(int by)
+    {
+        if (SelectedEntry == null) return;
+        int from = Playlist.IndexOf(SelectedEntry);
+        int to = Math.Clamp(from + by, 0, Playlist.Count - 1);
+        if (to == from) return;
+        Playlist.Move(from, to);
+        AfterPlaylistChange();
+    }
+
+    public void Remove(PlaylistItemViewModel item)
+    {
+        int index = Playlist.IndexOf(item);
+        if (index < 0) return;
+        Playlist.RemoveAt(index);
+        SelectedEntry = Playlist.Count == 0 ? null : Playlist[Math.Min(index, Playlist.Count - 1)];
+        AfterPlaylistChange();
+    }
+
+    private void Shuffle()
+    {
+        var order = Playlist.OrderBy(_ => Random.Shared.Next()).ToList();
+        Playlist.Clear();
+        foreach (var item in order) Playlist.Add(item);
+        AfterPlaylistChange();
+    }
+
+    private async Task ClearPlaylistAsync()
+    {
+        if (!await _main.ConfirmAsync("Clear the playlist?", $"All {Plural(Playlist.Count, "map")} come out of it.", "Clear")) return;
+        Playlist.Clear();
+        SelectedEntry = null;
+        AfterPlaylistChange();
+    }
+
+    internal void AfterPlaylistChange(bool save = true)
+    {
+        for (int i = 0; i < Playlist.Count; i++) Playlist[i].Number = i + 1;
+        if (save)
+        {
+            Profile.Playlist = Playlist.Select(p => p.Entry).ToList();
+            _main.Setup.Save();
+            if (IsRunning) PlaylistDirty = true;
+        }
+        Raise(nameof(PlaylistEmpty));
+        Raise(nameof(PlaylistCount));
+        if (Status == ServerStatus.NotRunning) Raise(nameof(StatusDetail));
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private void MarkCurrent()
+    {
+        string current = _state?.Phase is ServerPhase.Shell or null ? "" : _state.Map;
+        string next = _state?.Next ?? "";
+        bool foundCurrent = false, foundNext = false;
+        foreach (var item in Playlist)
+        {
+            item.IsCurrent = !foundCurrent && current.Length > 0 && string.Equals(item.Entry.Mission, current, StringComparison.OrdinalIgnoreCase);
+            foundCurrent |= item.IsCurrent;
+            item.IsNext = !foundNext && foundCurrent && !item.IsCurrent && string.Equals(item.Entry.Mission, next, StringComparison.OrdinalIgnoreCase);
+            foundNext |= item.IsNext;
+        }
+    }
+
+    private async Task ApplyPlaylistAsync()
+    {
+        if (_admin == null) return;
+        var unknown = _catalog == null ? new List<string>() : Playlist.Where(p => p.IsUnknown).Select(p => p.Entry.Mission).ToList();
+        if (unknown.Count > 0)
+        {
+            _main.ShowNotice($"Not in the map list: {string.Join(", ", unknown)}. Remove them or refresh the maps first.", error: true);
+            return;
+        }
+        await Guard(async admin =>
+        {
+            await admin.SetRotationAsync(Profile.Playlist);
+            PlaylistDirty = false;
+            _main.ShowNotice(Status is ServerStatus.Lobby or ServerStatus.Playing or ServerStatus.Warmup
+                ? "Playlist sent. The map being played stays; the new order follows it."
+                : "Playlist sent.");
+        });
+    }
+
+
+    public ObservableCollection<PlayerRowViewModel> Players { get; } = new();
+    public string PlayersTab => Players.Count == 0 ? "Players" : $"Players ({Players.Count})";
+    public bool NoPlayers => Players.Count == 0;
+
+    private void SetPlayers(IReadOnlyList<PlayerInfo> players)
+    {
+        Players.Clear();
+        foreach (var player in players.OrderBy(p => p.Team == 0 ? 3 : p.Team).ThenByDescending(p => p.Score))
+            Players.Add(new PlayerRowViewModel(this, player));
+        Raise(nameof(PlayersTab));
+        Raise(nameof(NoPlayers));
+    }
+
+    internal async Task KickAsync(PlayerInfo player)
+    {
+        if (!await _main.ConfirmAsync($"Kick {player.Name}?", "They can join again unless the server is full or passworded.", "Kick")) return;
+        await Guard(async admin =>
+        {
+            await admin.KickAsync(player.Slot);
+            AddMessage(ChatKind.Admin, $"Kicked {player.Name}.");
+        });
+        await PollAsync();
+    }
+
+    internal async Task SwapAsync(PlayerInfo player)
+    {
+        await Guard(async admin =>
+        {
+            await admin.SwapAsync(player.Slot);
+            AddMessage(ChatKind.Admin, $"Moved {player.Name} to the other team.");
+        });
+        await PollAsync();
+    }
+
+    /// <summary>The game has no private messages: write to everyone, addressed to the player.</summary>
+    internal void MessagePlayer(PlayerInfo player)
+    {
+        SayText = $"{player.Name}: ";
+        Tab = ControlTab.Chat;
+        SayFocusRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    public event EventHandler? SayFocusRequested;
+
+
+    public ObservableCollection<ChatLine> Messages { get; } = new();
+    public ICollectionView MessagesView { get; }
+
+    public bool ShowServerLog
+    {
+        get => _showServerLog;
+        set
+        {
+            if (Set(ref _showServerLog, value)) MessagesView.Refresh();
+        }
+    }
+
+    public string SayText
+    {
+        get => _sayText;
+        set
+        {
+            if (Set(ref _sayText, value)) CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    public ICommand SayCommand { get; }
+
+    private async Task SayAsync()
+    {
+        string text = SayText.Trim();
+        await Guard(async admin =>
+        {
+            await admin.SayAsync(text);
+            AddMessage(ChatKind.Admin, "You: " + text);
+            SayText = "";
+        });
+    }
+
+    public void AddMessage(ChatKind kind, string text)
+    {
+        Messages.Add(new ChatLine(DateTime.Now, kind, text));
+        while (Messages.Count > 600) Messages.RemoveAt(0);
+        MessageAdded?.Invoke(this, EventArgs.Empty);
+    }
+
+    public event EventHandler? MessageAdded;
+
+
+    public ServerOptionsViewModel LiveOptions { get; }
+    public ICommand ApplyOptionsCommand { get; }
+
+    internal void OptionsChanged(ServerOptionsViewModel source)
+    {
+        if (source != LiveOptions) LiveOptions.Refresh();
+        else _servers.Options.Refresh();
+        if (source != LiveOptions && IsRunning) LiveOptions.IsDirty = true;
+        Raise(nameof(ServerSummary));
+    }
+
+    private async Task ApplyOptionsAsync()
+    {
+        await Guard(async admin =>
+        {
+            foreach (var (command, value) in Profile.OptionCommands()) await admin.SetOptionAsync(command, value);
+            LiveOptions.IsDirty = false;
+            _main.ShowNotice("Options sent. They apply from the next map.");
+        });
+    }
+
+
+    private async Task LaunchAsync()
+    {
+        var unknown = _catalog == null ? new List<string>() : Playlist.Where(p => p.IsUnknown).Select(p => p.Entry.Mission).ToList();
+        if (unknown.Count > 0)
+        {
+            _main.ShowNotice($"Not in the map list: {string.Join(", ", unknown)}. Remove them first; a wrong name stops the server's next load.", error: true);
+            return;
+        }
+        Profile.Normalize();
+        _main.Setup.Save();
+        Messages.Clear();
+        _state = null;
+        _stopRequested = false;
+        _quietExit = false;
+        PlaylistDirty = false;
+        LiveOptions.IsDirty = false;
+
+        if (UseFakeServer)
+        {
+            Status = ServerStatus.Starting;
+            var fake = new FakeServerAdmin(_catalog ?? SampleCatalog.Load(), Profile);
+            await fake.ConnectAsync(Profile.AdminPassword, CancellationToken.None);
+            Attach(fake);
+            await PollAsync();
+            return;
+        }
+
+        try
+        {
+            var process = _host.Start(Profile);
+            _main.Setup.State.RunningServer = new ServerSession(process.Id, process.StartTimeUtc, Profile.Port);
+            _main.Setup.Save();
+        }
+        catch (Exception e) when (e is IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            _main.ShowError(e);
+            return;
+        }
+        Status = ServerStatus.Starting;
+        AddMessage(ChatKind.Admin, $"Starting {Profile.Name} on port {Profile.Port}.");
+        _main.Play.Refresh();
+
+        var client = new RconClient(new IPEndPoint(IPAddress.Loopback, Profile.Port)) { ReplyTimeout = TimeSpan.FromSeconds(1) };
+        var error = await Activity.RunAsync("Starting the server", async (progress, ct) =>
+        {
+            progress.Report(new StepUpdate("Starting the server", "Loading the first map"));
+            await ConnectAsync(client, Profile.AdminPassword, ct);
+            if (_host.MapsOnCommandLine < Profile.Playlist.Count)
+            {
+                progress.Report(new StepUpdate("Starting the server", "Sending the rest of the playlist"));
+                await client.SetRotationAsync(Profile.Playlist, ct);
+            }
+        }, cancellable: true);
+
+        if (error != null)
+        {
+            await client.DisposeAsync();
+            _quietExit = true;
+            if (_host.IsRunning)
+            {
+                _stopRequested = true;
+                await _host.StopAsync(null, TimeSpan.FromSeconds(3));
+            }
+            _main.ShowError(error, "Cancelled: the server was stopped.");
+            return;
+        }
+        Attach(client);
+        await PollAsync();
+    }
+
+    /// <summary>Retries until the server answers: it loads the shell and its first map before
+    /// the admin port does.</summary>
+    private async Task ConnectAsync(IServerAdmin admin, string password, CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow + StartTimeout;
+        while (true)
+        {
+            if (!_host.IsRunning) throw new InvalidOperationException("The server closed while starting. Its log is in Logs\\server.log.");
+            try
+            {
+                await admin.ConnectAsync(password, ct);
+                return;
+            }
+            catch (TimeoutException) when (DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(1000, ct);
+            }
+            catch (RconException e) when (e.Message.StartsWith("Too many") && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(10_000, ct);
+            }
+        }
+    }
+
+    private void Attach(IServerAdmin admin)
+    {
+        _admin = admin;
+        admin.Pushed += line => Ui(() => OnPushed(line));
+        admin.Lost += _ => Ui(() =>
+        {
+            if (IsRunning) AddMessage(ChatKind.Admin, "The server stopped answering.");
+        });
+        if (Status == ServerStatus.Starting) Status = ServerStatus.Loading;
+        _poll.Start();
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    /// <summary>A server left running by the last launch: find it again and log in.</summary>
+    public async Task ReattachAsync()
+    {
+        var session = _main.Setup.State.RunningServer;
+        if (session == null || IsRunning) return;
+        if (!_host.TryAttach(session))
+        {
+            _main.Setup.State.RunningServer = null;
+            _main.Setup.Save();
+            return;
+        }
+        Status = ServerStatus.Loading;
+        AddMessage(ChatKind.Admin, $"Found the server left running (process {session.Pid}).");
+        var client = new RconClient(new IPEndPoint(IPAddress.Loopback, session.Port)) { ReplyTimeout = TimeSpan.FromSeconds(1) };
+        try
+        {
+            await ConnectAsync(client, Profile.AdminPassword, CancellationToken.None);
+            Attach(client);
+            await PollAsync();
+        }
+        catch (Exception e) when (e is TimeoutException or RconException or InvalidOperationException or System.Net.Sockets.SocketException)
+        {
+            await client.DisposeAsync();
+            _main.ShowNotice("The server left running didn't answer: " + e.Message, error: true);
+        }
+    }
+
+    private async Task StopAsync()
+    {
+        if (!await _main.ConfirmAsync("Stop the server?", "Everyone on it is disconnected.", "Stop server")) return;
+        await StopNowAsync();
+    }
+
+    /// <summary>Stops without asking (closing the launcher already asked).</summary>
+    public async Task StopNowAsync()
+    {
+        _stopRequested = true;
+        Status = ServerStatus.Stopping;
+        if (UseFakeServer || !_host.IsRunning)
+        {
+            OnServerExited();
+            return;
+        }
+        var admin = _admin;
+        await _host.StopAsync(admin == null ? null : () => admin.ShutdownAsync(), TimeSpan.FromSeconds(5));
+    }
+
+    /// <summary>Closing the launcher while it hosts leaves the server up; the next launch attaches again.</summary>
+    public async Task DetachAsync()
+    {
+        _poll.Stop();
+        if (_admin != null) await _admin.DisposeAsync();
+        _admin = null;
+    }
+
+    private async void OnServerExited()
+    {
+        if (Status == ServerStatus.NotRunning) return;
+        _poll.Stop();
+        var admin = _admin;
+        _admin = null;
+        bool expected = _stopRequested;
+        _state = null;
+        Status = ServerStatus.NotRunning;
+        if (admin != null) await admin.DisposeAsync();
+        _host.Forget();
+        _main.Setup.State.RunningServer = null;
+        _main.Setup.Save();
+        SetPlayers(Array.Empty<PlayerInfo>());
+        MarkCurrent();
+        PlaylistDirty = false;
+        AddMessage(ChatKind.Admin, expected ? "Server stopped." : "The server closed.");
+        // A failed start reports its own error instead.
+        if (!_quietExit)
+        {
+            if (expected) _main.ShowNotice("Server stopped.");
+            else _main.ShowNotice($"The server closed. Its log is in {_host.LogFile}.", error: true);
+        }
+        _main.Play.Refresh();
+    }
+
+
+    private async Task PollAsync()
+    {
+        var admin = _admin;
+        if (admin is not { IsLoggedIn: true } || _polling) return;
+        _polling = true;
+        try
+        {
+            ApplyState(await admin.StateAsync());
+            if (_pollCount++ % 2 == 0 || Tab == ControlTab.Players) SetPlayers(await admin.PlayersAsync());
+        }
+        catch (NotSupportedException e)
+        {
+            _poll.Stop();
+            _main.ShowNotice(e.Message, error: true);
+        }
+        catch (Exception e) when (e is TimeoutException or RconException or System.Net.Sockets.SocketException or ObjectDisposedException)
+        {
+            // The next tick tries again; a stopped server shows up through its process.
+        }
+        finally
+        {
+            _polling = false;
+        }
+    }
+
+    private void ApplyState(ServerState state)
+    {
+        _state = state;
+        if (Status != ServerStatus.Stopping)
+        {
+            Status = state.Phase switch
+            {
+                ServerPhase.Lobby => ServerStatus.Lobby,
+                ServerPhase.Warmup => ServerStatus.Warmup,
+                ServerPhase.Playing => ServerStatus.Playing,
+                ServerPhase.Ended => ServerStatus.Results,
+                _ => ServerStatus.Loading,
+            };
+        }
+        Raise(nameof(StatusDetail));
+        MarkCurrent();
+    }
+
+    private static readonly string[] EventPrefixes = { "game started: ", "lobby: ", "match started: ", "score: " };
+
+    /// <summary>Chat is "name: text"; everything else (game over, players joining) is an event,
+    /// and worth a fresh look at the state.</summary>
+    private void OnPushed(string line)
+    {
+        bool isEvent = EventPrefixes.Any(p => line.StartsWith(p, StringComparison.Ordinal)) || !line.Contains(": ");
+        AddMessage(isEvent ? ChatKind.Event : ChatKind.Chat, line);
+        if (isEvent) _ = PollAsync();
+    }
+
+    private void OnServerLine(string line)
+    {
+        AddMessage(ChatKind.Log, line);
+        if (_admin is { IsLoggedIn: true }) return;
+        // Until the admin port answers, the log's marker lines tell the state.
+        switch (ServerLog.Parse(line).Event)
+        {
+            case ServerLogEvent.MissionStart when Status == ServerStatus.Starting:
+                Status = ServerStatus.Loading;
+                break;
+        }
+    }
+
+    private void Run(Func<IServerAdmin, Task> action, string done) => _ = Guard(async admin =>
+    {
+        await action(admin);
+        AddMessage(ChatKind.Admin, done);
+        await Task.Delay(300);
+    }, poll: true);
+
+    private async Task BackToLobbyAsync()
+    {
+        if (Status is ServerStatus.Playing or ServerStatus.Warmup &&
+            !await _main.ConfirmAsync("Back to the lobby?", "This match ends now, and the next map waits in the lobby until you start it.", "Back to lobby"))
+            return;
+        await Guard(async admin =>
+        {
+            string result = await admin.LobbyAsync(now: true);
+            AddMessage(ChatKind.Admin, result.Length > 0 ? char.ToUpper(result[0]) + result[1..] + "." : "Back to the lobby.");
+        }, poll: true);
+    }
+
+    /// <summary>Runs an admin command, one at a time, and reports what went wrong.</summary>
+    private async Task Guard(Func<IServerAdmin, Task> action, bool poll = false)
+    {
+        var admin = _admin;
+        if (admin == null || _busy) return;
+        _busy = true;
+        CommandManager.InvalidateRequerySuggested();
+        try
+        {
+            await action(admin);
+        }
+        catch (Exception e) when (e is TimeoutException or RconException or NotSupportedException or System.Net.Sockets.SocketException or ObjectDisposedException)
+        {
+            _main.ShowError(e);
+        }
+        finally
+        {
+            _busy = false;
+            CommandManager.InvalidateRequerySuggested();
+        }
+        if (poll) await PollAsync();
+    }
+
+    private static void Ui(Action action)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess()) action();
+        else dispatcher.BeginInvoke(action);
+    }
+}

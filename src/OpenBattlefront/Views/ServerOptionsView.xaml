@@ -1,0 +1,307 @@
+<UserControl x:Class="OpenBattlefront.Views.ServerOptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="RowTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+        </Style>
+        <Style x:Key="RowNote" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource Faint}" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="Divider" TargetType="Rectangle">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Fill" Value="{StaticResource Line}" />
+            <Setter Property="Margin" Value="0,12" />
+        </Style>
+        <Style x:Key="Section" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+            <Setter Property="Margin" Value="2,0,0,8" />
+        </Style>
+        <Style x:Key="Number" TargetType="TextBox" BasedOn="{StaticResource Field}">
+            <Setter Property="Width" Value="72" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="TextAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="SegmentBox" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Bg}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="3" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="Unit" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <!-- Server: fixed while it runs -->
+        <StackPanel Visibility="{Binding IsLive, Converter={StaticResource NotVis}}">
+            <TextBlock Text="SERVER" Style="{StaticResource Section}" />
+            <Border Style="{StaticResource Card}" Margin="0,0,0,20" Padding="20,16" IsEnabled="{Binding ServerEditable}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Server name" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="Shown in the server list." Style="{StaticResource RowNote}" />
+                        </StackPanel>
+                        <TextBox Grid.Column="1" Style="{StaticResource Field}" Width="250" MaxLength="31" Text="{Binding Name, UpdateSourceTrigger=LostFocus}" />
+                    </Grid>
+                    <Rectangle Style="{StaticResource Divider}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Join password" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="Leave it blank to let anyone join." Style="{StaticResource RowNote}" />
+                        </StackPanel>
+                        <TextBox Grid.Column="1" Style="{StaticResource Field}" Width="250" MaxLength="15" Text="{Binding JoinPassword, UpdateSourceTrigger=LostFocus}" />
+                    </Grid>
+                    <Rectangle Style="{StaticResource Divider}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Port and players" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="UDP port 3658 unless something else uses it. 2 to 64 players." Style="{StaticResource RowNote}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="Port" Style="{StaticResource Unit}" Margin="0,0,8,0" />
+                            <TextBox Style="{StaticResource Number}" Text="{Binding Port, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="Max players" Style="{StaticResource Unit}" Margin="18,0,8,0" />
+                            <TextBox Style="{StaticResource Number}" Width="56" Text="{Binding MaxPlayers, UpdateSourceTrigger=LostFocus}" />
+                        </StackPanel>
+                    </Grid>
+                    <Rectangle Style="{StaticResource Divider}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Tick rate" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="Updates per second. 60 suits most games; 120 needs a strong connection." Style="{StaticResource RowNote}" />
+                        </StackPanel>
+                        <Border Grid.Column="1" Style="{StaticResource SegmentBox}">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton Style="{StaticResource Segment}" Content="30" Width="52"
+                                             IsChecked="{Binding Tick, Converter={StaticResource Eq}, ConverterParameter=30}" />
+                                <RadioButton Style="{StaticResource Segment}" Content="60" Width="52"
+                                             IsChecked="{Binding Tick, Converter={StaticResource Eq}, ConverterParameter=60}" />
+                                <RadioButton Style="{StaticResource Segment}" Content="120" Width="52"
+                                             IsChecked="{Binding Tick, Converter={StaticResource Eq}, ConverterParameter=120}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                    <Rectangle Style="{StaticResource Divider}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Admin password" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="The launcher logs in with it. Keep it to yourself." Style="{StaticResource RowNote}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Height="32" Width="150" Padding="10,0">
+                                <TextBlock Text="{Binding AdminPasswordText}" FontFamily="Consolas" FontSize="13" Foreground="{StaticResource Text}" VerticalAlignment="Center" />
+                            </Border>
+                            <Button Style="{StaticResource IconButton}" Content="&#xE7B3;" Command="{Binding ToggleAdminPasswordCommand}" ToolTip="Show or hide" Margin="4,0,0,0" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE8C8;" Command="{Binding CopyAdminPasswordCommand}" ToolTip="Copy" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE72C;" Command="{Binding NewAdminPasswordCommand}" ToolTip="Make a new one" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- Battle -->
+        <TextBlock Text="BATTLE" Style="{StaticResource Section}" />
+        <Border Style="{StaticResource Card}" Margin="0,0,0,20" Padding="20,16">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Bots" Style="{StaticResource RowTitle}" />
+                        <TextBlock Text="Per team, 0 to 32. They fill in around the players." Style="{StaticResource RowNote}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBox Style="{StaticResource Number}" Width="56" Text="{Binding BotsPerTeam, UpdateSourceTrigger=LostFocus}" />
+                        <TextBlock Text="per team" Style="{StaticResource Unit}" />
+                    </StackPanel>
+                </Grid>
+                <Rectangle Style="{StaticResource Divider}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="AI difficulty" Style="{StaticResource RowTitle}" />
+                        <TextBlock Text="Overhaul: smarter bots that aim fairly." Style="{StaticResource RowNote}" />
+                    </StackPanel>
+                    <Border Grid.Column="1" Style="{StaticResource SegmentBox}">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton Style="{StaticResource Segment}" Content="Medium"
+                                         IsChecked="{Binding Difficulty, Converter={StaticResource Eq}, ConverterParameter=2}" />
+                            <RadioButton Style="{StaticResource Segment}" Content="Hard"
+                                         IsChecked="{Binding Difficulty, Converter={StaticResource Eq}, ConverterParameter=3}" />
+                            <RadioButton Style="{StaticResource Segment}" Content="Overhaul"
+                                         IsChecked="{Binding Difficulty, Converter={StaticResource Eq}, ConverterParameter=4}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+                <Rectangle Style="{StaticResource Divider}" />
+                <UniformGrid Columns="2">
+                    <CheckBox Style="{StaticResource Switch}" Content="Team damage" IsChecked="{Binding TeamDamage}" Margin="0,0,0,12" />
+                    <CheckBox Style="{StaticResource Switch}" Content="Show names above players" IsChecked="{Binding ShowNames}" Margin="0,0,0,12" />
+                    <CheckBox Style="{StaticResource Switch}" Content="Auto-assign teams" IsChecked="{Binding AutoAssignTeams}" />
+                    <CheckBox Style="{StaticResource Switch}" Content="Award weapons" IsChecked="{Binding Awards}" />
+                </UniformGrid>
+            </StackPanel>
+        </Border>
+
+        <!-- Heroes -->
+        <TextBlock Text="HEROES" Style="{StaticResource Section}" />
+        <Border Style="{StaticResource Card}" Margin="0,0,0,20" Padding="20,16">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Heroes" Style="{StaticResource RowTitle}" />
+                        <TextBlock Text="Unlocked during the match, as in Instant Action." Style="{StaticResource RowNote}" />
+                    </StackPanel>
+                    <CheckBox Grid.Column="1" Style="{StaticResource Switch}" IsChecked="{Binding Heroes}" VerticalAlignment="Center" />
+                </Grid>
+                <StackPanel IsEnabled="{Binding Heroes}">
+                    <Rectangle Style="{StaticResource Divider}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Unlock" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="{Binding HeroUnlockUnit, StringFormat=By points scored or after a time: {0}.}" Style="{StaticResource RowNote}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Style="{StaticResource SegmentBox}">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Style="{StaticResource Segment}" Content="Points"
+                                                 IsChecked="{Binding HeroUnlock, Converter={StaticResource Eq}, ConverterParameter=points}" />
+                                    <RadioButton Style="{StaticResource Segment}" Content="Timer"
+                                                 IsChecked="{Binding HeroUnlock, Converter={StaticResource Eq}, ConverterParameter=timer}" />
+                                </StackPanel>
+                            </Border>
+                            <TextBox Style="{StaticResource Number}" Width="56" Margin="10,0,0,0" Text="{Binding HeroUnlockValue, UpdateSourceTrigger=LostFocus}" />
+                        </StackPanel>
+                    </Grid>
+                    <Rectangle Style="{StaticResource Divider}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Who gets the hero" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="The best player so far, or someone at random." Style="{StaticResource RowNote}" />
+                        </StackPanel>
+                        <Border Grid.Column="1" Style="{StaticResource SegmentBox}">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton Style="{StaticResource Segment}" Content="Best player"
+                                             IsChecked="{Binding HeroPlayer, Converter={StaticResource Eq}, ConverterParameter=best}" />
+                                <RadioButton Style="{StaticResource Segment}" Content="Random"
+                                             IsChecked="{Binding HeroPlayer, Converter={StaticResource Eq}, ConverterParameter=random}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Per mode -->
+        <TextBlock Text="PER MODE" Style="{StaticResource Section}" />
+        <Border Style="{StaticResource Card}" Padding="20,16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Conquest" Style="{StaticResource RowTitle}" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <TextBox Style="{StaticResource Number}" Text="{Binding ConquestReinforcements, UpdateSourceTrigger=LostFocus}" />
+                    <TextBlock Text="% reinforcements" Style="{StaticResource Unit}" Width="118" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <TextBox Style="{StaticResource Number}" Width="56" Text="{Binding ConquestTimeLimit, UpdateSourceTrigger=LostFocus}" />
+                    <TextBlock Text="min limit" Style="{StaticResource Unit}" Width="66" />
+                </StackPanel>
+
+                <Rectangle Grid.Row="1" Grid.ColumnSpan="3" Style="{StaticResource Divider}" Margin="0,10" />
+                <TextBlock Grid.Row="2" Text="Capture the Flag" Style="{StaticResource RowTitle}" VerticalAlignment="Center" />
+                <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal">
+                    <TextBox Style="{StaticResource Number}" Text="{Binding CtfCaptures, UpdateSourceTrigger=LostFocus}" />
+                    <TextBlock Text="captures to win" Style="{StaticResource Unit}" Width="118" />
+                </StackPanel>
+                <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal">
+                    <TextBox Style="{StaticResource Number}" Width="56" Text="{Binding CtfTimeLimit, UpdateSourceTrigger=LostFocus}" />
+                    <TextBlock Text="min limit" Style="{StaticResource Unit}" Width="66" />
+                </StackPanel>
+
+                <Rectangle Grid.Row="3" Grid.ColumnSpan="3" Style="{StaticResource Divider}" Margin="0,10" />
+                <TextBlock Grid.Row="4" Text="Hunt" Style="{StaticResource RowTitle}" VerticalAlignment="Center" />
+                <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal">
+                    <TextBox Style="{StaticResource Number}" Text="{Binding HuntScore, UpdateSourceTrigger=LostFocus}" />
+                    <TextBlock Text="points to win" Style="{StaticResource Unit}" Width="118" />
+                </StackPanel>
+                <StackPanel Grid.Row="4" Grid.Column="2" Orientation="Horizontal">
+                    <TextBox Style="{StaticResource Number}" Width="56" Text="{Binding HuntTimeLimit, UpdateSourceTrigger=LostFocus}" />
+                    <TextBlock Text="min limit" Style="{StaticResource Unit}" Width="66" />
+                </StackPanel>
+
+                <Rectangle Grid.Row="5" Grid.ColumnSpan="3" Style="{StaticResource Divider}" Margin="0,10" />
+                <TextBlock Grid.Row="6" Text="Space Assault" Style="{StaticResource RowTitle}" VerticalAlignment="Center" />
+                <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal">
+                    <TextBox Style="{StaticResource Number}" Text="{Binding AssaultScore, UpdateSourceTrigger=LostFocus}" />
+                    <TextBlock Text="points to win" Style="{StaticResource Unit}" Width="118" />
+                </StackPanel>
+                <TextBlock Grid.Row="6" Grid.Column="2" Text="Time limit 0 = none" Style="{StaticResource RowNote}" VerticalAlignment="Center" Margin="0" />
+            </Grid>
+        </Border>
+    </StackPanel>
+</UserControl>

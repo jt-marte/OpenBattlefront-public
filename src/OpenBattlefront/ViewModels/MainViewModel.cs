@@ -18,6 +18,7 @@ public sealed class MainViewModel : ObservableObject
     private string _confirmTitle = "";
     private string _confirmText = "";
     private string _confirmOk = "OK";
+    private string _confirmCancel = "Cancel";
 
     public MainViewModel(GameSetup setup)
     {
@@ -30,7 +31,7 @@ public sealed class MainViewModel : ObservableObject
         Play = new PlayViewModel(this);
         Mods = new ModsViewModel(this);
         Settings = new SettingsViewModel(this);
-        Servers = new ServersViewModel();
+        Servers = new ServersViewModel(this);
 
         DismissNoticeCommand = new RelayCommand(() => Notice = null);
         ConfirmYesCommand = new RelayCommand(() => CloseConfirm(true));
@@ -68,6 +69,7 @@ public sealed class MainViewModel : ObservableObject
             if (value == Page.Mods) Mods.Refresh();
             if (value == Page.Settings) Settings.Refresh();
             if (value == Page.Play) Play.Refresh();
+            if (value == Page.Servers) Servers.Refresh();
         }
     }
 
@@ -113,15 +115,17 @@ public sealed class MainViewModel : ObservableObject
     public string ConfirmTitle { get => _confirmTitle; private set => Set(ref _confirmTitle, value); }
     public string ConfirmText { get => _confirmText; private set => Set(ref _confirmText, value); }
     public string ConfirmOk { get => _confirmOk; private set => Set(ref _confirmOk, value); }
+    public string ConfirmCancel { get => _confirmCancel; private set => Set(ref _confirmCancel, value); }
     public ICommand ConfirmYesCommand { get; }
     public ICommand ConfirmNoCommand { get; }
 
-    public Task<bool> ConfirmAsync(string title, string text, string ok)
+    public Task<bool> ConfirmAsync(string title, string text, string ok, string cancel = "Cancel")
     {
         _confirm?.TrySetResult(false);
         ConfirmTitle = title;
         ConfirmText = text;
         ConfirmOk = ok;
+        ConfirmCancel = cancel;
         _confirm = new TaskCompletionSource<bool>();
         Raise(nameof(ConfirmOpen));
         return _confirm.Task;
@@ -181,6 +185,19 @@ public sealed class MainViewModel : ObservableObject
         await InstallContentAsync();
         if (Setup.IsReady && Setup.State.CheckUpdatesOnStart) await Play.CheckForUpdateAsync(silent: true);
         else if (Setup.State.ImportComplete && !Setup.IsReady) await Play.LoadLatestAsync();
+        await Servers.Control.ReattachAsync();
+    }
+
+    /// <summary>Closing while hosting: stop the server too, or leave it running for the next
+    /// launch to attach to. Returns once the window may close.</summary>
+    public async Task BeforeCloseAsync()
+    {
+        var control = Servers.Control;
+        if (!control.IsRunning) return;
+        bool stop = await ConfirmAsync("Stop the server too?",
+            "It is still hosting. Keep it running and the launcher finds it again next time.", "Stop server", "Keep running");
+        if (stop) await control.StopNowAsync();
+        else await control.DetachAsync();
     }
 
     /// <summary>The Conversion Pack and the Xbox DLC come with the launcher: put them in the game
@@ -212,4 +229,3 @@ public sealed class MainViewModel : ObservableObject
     }
 }
 
-public sealed class ServersViewModel { }

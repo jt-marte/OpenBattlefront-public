@@ -1,16 +1,132 @@
 <UserControl x:Class="OpenBattlefront.Views.ServersView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="380">
-        <Border Width="54" Height="54" CornerRadius="27" Background="{StaticResource AccentSoft}">
-            <TextBlock Text="&#xE774;" Style="{StaticResource Glyph}" FontSize="22" Foreground="{StaticResource Accent}" />
-        </Border>
-        <TextBlock Text="Server manager" Style="{StaticResource H2}" HorizontalAlignment="Center" Margin="0,18,0,0" />
-        <TextBlock Style="{StaticResource Body}" TextAlignment="Center" Margin="0,8,0,0"
-                   Text="Host and manage dedicated servers from here: map rotation, bots, tick rate and who's playing." />
-        <Border HorizontalAlignment="Center" Margin="0,20,0,0" CornerRadius="12" Padding="12,4" Background="{StaticResource SurfaceHi}"
-                BorderBrush="{StaticResource Line}" BorderThickness="1">
-            <TextBlock Text="Coming soon" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Accent}" />
-        </Border>
-    </StackPanel>
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:OpenBattlefront.Views"
+             x:Name="Root">
+    <UserControl.Resources>
+        <!-- A large card that is one button -->
+        <Style x:Key="ChoiceCard" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                                CornerRadius="14" Padding="24,22">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource SurfaceHi}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- Landing -->
+        <Grid Margin="40,52,40,26" Visibility="{Binding Screen, Converter={StaticResource Show}, ConverterParameter=Landing}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <StackPanel>
+                <TextBlock Text="Server manager" Style="{StaticResource H2}" />
+                <TextBlock Style="{StaticResource Body}" Margin="0,4,0,0" MaxWidth="560" HorizontalAlignment="Left"
+                           Text="Host a dedicated server from your game copy and run it from here: playlist, lobby, start and end matches, players and chat." />
+            </StackPanel>
+
+            <UniformGrid Grid.Row="1" Columns="2" Margin="0,26,0,0">
+                <Button Style="{StaticResource ChoiceCard}" Command="{Binding HostCommand}" Margin="0,0,8,0" MinHeight="196">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Border Width="44" Height="44" CornerRadius="22" Background="{StaticResource AccentSoft}" HorizontalAlignment="Left">
+                            <TextBlock Text="&#xE774;" Style="{StaticResource Glyph}" FontSize="19" Foreground="{StaticResource Accent}" />
+                        </Border>
+                        <TextBlock Grid.Row="1" Text="Host a server" Style="{StaticResource H3}" FontSize="17" Margin="0,16,0,0" />
+                        <TextBlock Grid.Row="2" Style="{StaticResource Body}" Margin="0,6,0,0"
+                                   Text="Pick the rules and a playlist, launch it on this PC, and start the match when your friends are in the lobby." />
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                            <TextBlock Text="Set up" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Accent}" VerticalAlignment="Center" />
+                            <TextBlock Text="&#xE72A;" Style="{StaticResource Glyph}" FontSize="13" Foreground="{StaticResource Accent}" Margin="8,1,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </Button>
+
+                <Button Style="{StaticResource ChoiceCard}" IsEnabled="False" Margin="8,0,0,0" MinHeight="196">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid>
+                            <Border Width="44" Height="44" CornerRadius="22" Background="{StaticResource SurfaceHi}" HorizontalAlignment="Left">
+                                <TextBlock Text="&#xE77B;" Style="{StaticResource Glyph}" FontSize="19" Foreground="{StaticResource Muted}" />
+                            </Border>
+                            <Border CornerRadius="11" Padding="10,3" Background="{StaticResource SurfaceHi}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                                    HorizontalAlignment="Right" VerticalAlignment="Top">
+                                <TextBlock Text="Coming later" FontSize="11.5" Foreground="{StaticResource Faint}" />
+                            </Border>
+                        </Grid>
+                        <TextBlock Grid.Row="1" Text="Connect to server as admin" Style="{StaticResource H3}" FontSize="17" Margin="0,16,0,0" />
+                        <TextBlock Grid.Row="2" Style="{StaticResource Body}" Margin="0,6,0,0"
+                                   Text="Run a server elsewhere with the same playlist and controls, once remote logins are safe to expose." />
+                    </Grid>
+                </Button>
+            </UniformGrid>
+        </Grid>
+
+        <!-- Server options -->
+        <Grid Margin="0,40,0,0" Visibility="{Binding Screen, Converter={StaticResource Show}, ConverterParameter=Options}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel Margin="40,4,40,14">
+                <Button Style="{StaticResource LinkButton}" Command="{Binding BackCommand}" HorizontalAlignment="Left">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE72B;" Style="{StaticResource Glyph}" FontSize="11" />
+                        <TextBlock Text="Server manager" Margin="6,0,0,0" FontSize="12.5" />
+                    </StackPanel>
+                </Button>
+                <TextBlock Text="Server options" Style="{StaticResource H2}" Margin="0,6,0,0" />
+            </StackPanel>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <views:ServerOptionsView DataContext="{Binding Options}" Margin="40,0,40,16" />
+            </ScrollViewer>
+            <Border Grid.Row="2" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="40,12,40,16">
+                <Grid>
+                    <TextBlock Style="{StaticResource Caption}" FontWeight="Normal" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,200,0"
+                               Text="Saved as you go. Players join with Direct Connect to this PC's address and the port." />
+                    <Button Style="{StaticResource PrimaryButton}" Command="{Binding ContinueCommand}" HorizontalAlignment="Right">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Continue to playlist" VerticalAlignment="Center" />
+                            <TextBlock Text="&#xE72A;" Style="{StaticResource Glyph}" FontSize="12" Margin="10,1,0,0" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Playlist and control -->
+        <views:ServerControlView DataContext="{Binding Control}"
+                                 Visibility="{Binding DataContext.Screen, ElementName=Root, Converter={StaticResource Show}, ConverterParameter=Control}" />
+    </Grid>
 </UserControl>

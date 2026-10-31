@@ -136,7 +136,7 @@
                     <TextBlock Text="{Binding ConfirmTitle}" Style="{StaticResource H3}" FontSize="17" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding ConfirmText}" Style="{StaticResource Body}" Margin="0,8,0,22" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Style="{StaticResource GhostButton}" Content="Cancel" Command="{Binding ConfirmNoCommand}" IsCancel="True" />
+                        <Button Style="{StaticResource GhostButton}" Content="{Binding ConfirmCancel}" Command="{Binding ConfirmNoCommand}" IsCancel="True" />
                         <Button Style="{StaticResource PrimaryButton}" Content="{Binding ConfirmOk}" Command="{Binding ConfirmYesCommand}" Margin="8,0,0,0" IsDefault="True" />
                     </StackPanel>
                 </StackPanel>

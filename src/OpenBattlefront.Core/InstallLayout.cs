@@ -27,6 +27,10 @@ public sealed class InstallLayout
     public string Downloads => Path.Combine(Root, "Downloads");
     public string Temp => Path.Combine(Root, "Temp");
     public string Logs => Path.Combine(Root, "Logs");
+    public string Cache => Path.Combine(Root, "Cache");
+
+    /// <summary>The dedicated server's /configdir: ServerSettings.cfg and ServerRotation.cfg.</summary>
+    public string ServerSettings => Path.Combine(Root, "Server", "settings");
 
     /// <summary>The game's own crash reports (pcCrash).</summary>
     public static string CrashReports =>

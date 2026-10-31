@@ -35,7 +35,13 @@ public sealed class GameSetup
 
     public IReadOnlyDictionary<string, string[]> AcceptedLvls => StockLvls.Merge(Installed?.StockLvls);
 
-    public void Save() => State.Save(_stateFile);
+    /// <summary>Off for --screenshot runs, which change settings to show them.</summary>
+    public bool SavingEnabled { get; set; } = true;
+
+    public void Save()
+    {
+        if (SavingEnabled) State.Save(_stateFile);
+    }
 
     public static string Explain(ValidationResult result)
     {

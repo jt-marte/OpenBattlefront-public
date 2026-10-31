@@ -136,7 +136,7 @@ public sealed class PlayViewModel : ObservableObject
             if (Stage != PlayStage.Review) _source = null;
         }
         MissingPrereqs = Prerequisites.Check().Where(p => !p.Present).ToList();
-        if (_game == null) IsGameRunning = Setup.IsReady && GameLauncher.IsRunning(Setup.Layout);
+        if (_game == null) IsGameRunning = Setup.IsReady && GameLauncher.IsRunning(Setup.Layout, _main.Servers?.Control.ServerProcessId);
         if (Stage == PlayStage.Welcome && !_steamSearched)
         {
             _steamSearched = true;

@@ -27,7 +27,8 @@ public static class GameLauncher
         return Process.Start(info) ?? throw new InvalidOperationException("The game did not start.");
     }
 
-    public static bool IsRunning(InstallLayout layout)
+    /// <param name="except">A hosted dedicated server: the same exe, but not the game.</param>
+    public static bool IsRunning(InstallLayout layout, int? except = null)
     {
         foreach (var process in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(layout.GameExe)))
         {
@@ -35,6 +36,7 @@ public static class GameLauncher
             {
                 try
                 {
+                    if (process.Id == except) continue;
                     if (string.Equals(process.MainModule?.FileName, layout.GameExe, StringComparison.OrdinalIgnoreCase)) return true;
                 }
                 catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)

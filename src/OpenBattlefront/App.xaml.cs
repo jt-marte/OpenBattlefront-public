@@ -16,7 +16,8 @@ public partial class App : Application
     /// <summary>
     /// Arguments for development: --state &lt;launcher.json&gt; uses another state file (and so another
     /// install), --screenshot &lt;dir&gt; saves each page as a PNG and exits, --drop &lt;path&gt; drops a
-    /// folder on the Play page first.
+    /// folder on the Play page first, --fake-server runs the Server manager against a simulated
+    /// server and the sample map list.
     /// </summary>
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -35,12 +36,14 @@ public partial class App : Application
         string stateFile = Arg(e.Args, "--state") ?? LauncherState.DefaultFile;
         var setup = new GameSetup(LauncherState.Load(stateFile), stateFile, MainViewModel.LauncherVersion);
         Launcher = new MainViewModel(setup);
+        if (e.Args.Any(a => a.Equals("--fake-server", StringComparison.OrdinalIgnoreCase))) Launcher.Servers.Control.UseFakeServer = true;
         var window = new MainWindow { DataContext = Launcher };
         MainWindow = window;
         window.Show();
 
         if (Arg(e.Args, "--screenshot") is { } shots)
         {
+            setup.SavingEnabled = false;
             await Screenshots.CaptureAsync(window, Launcher, shots, Arg(e.Args, "--drop"));
             Shutdown();
             return;

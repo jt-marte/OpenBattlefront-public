@@ -1,0 +1,614 @@
+<UserControl x:Class="OpenBattlefront.Views.ServerControlView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:OpenBattlefront.ViewModels"
+             xmlns:views="clr-namespace:OpenBattlefront.Views">
+    <UserControl.Resources>
+        <Style x:Key="Small" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="11,0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+        </Style>
+        <Style x:Key="SmallPrimary" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="13,0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+        </Style>
+        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource Small}">
+            <Setter Property="Foreground" Value="{StaticResource Danger}" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
+        <Style x:Key="BtnGlyph" TargetType="TextBlock" BasedOn="{StaticResource Glyph}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,1,7,0" />
+        </Style>
+        <Style x:Key="Panel" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Surface}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+        </Style>
+        <Style x:Key="Tiny" TargetType="TextBox" BasedOn="{StaticResource Field}">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Padding" Value="2,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="MaxLength" Value="4" />
+        </Style>
+        <Style x:Key="Tag" TargetType="Border">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="5,0,5,1" />
+            <Setter Property="Margin" Value="7,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="TagText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <!-- Stock / Mods filter pill -->
+        <Style x:Key="FilterPill" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Border x:Name="Bd" CornerRadius="12" Padding="10,3" BorderThickness="1" BorderBrush="{StaticResource Line}" Background="Transparent">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentSoft}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter Property="Foreground" Value="{StaticResource Text}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Lists without the default chrome -->
+        <Style x:Key="PlainList" TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="False" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <ContentPresenter />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Status dot -->
+        <Style x:Key="StatusDot" TargetType="Ellipse">
+            <Setter Property="Width" Value="9" />
+            <Setter Property="Height" Value="9" />
+            <Setter Property="Fill" Value="{StaticResource Faint}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Status}" Value="Starting">
+                    <Setter Property="Fill" Value="#E0A93B" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Loading">
+                    <Setter Property="Fill" Value="#E0A93B" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Lobby">
+                    <Setter Property="Fill" Value="{StaticResource Accent}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Warmup">
+                    <Setter Property="Fill" Value="{StaticResource Success}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Playing">
+                    <Setter Property="Fill" Value="{StaticResource Success}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Results">
+                    <Setter Property="Fill" Value="{StaticResource Text}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Stopping">
+                    <Setter Property="Fill" Value="{StaticResource Danger}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="28,40,28,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Margin="0,0,0,12" MinHeight="32">
+            <StackPanel Orientation="Horizontal">
+                <Button Style="{StaticResource IconButton}" Content="&#xE72B;" Margin="-6,0,4,0" ToolTip="Server options"
+                        Command="{Binding DataContext.BackCommand, RelativeSource={RelativeSource AncestorType=views:ServersView}}"
+                        Visibility="{Binding ShowLaunch, Converter={StaticResource Vis}}" />
+                <TextBlock Text="Playlist and control" Style="{StaticResource H2}" FontSize="20" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Text="{Binding ServerSummary}" Style="{StaticResource Caption}" FontWeight="Normal" HorizontalAlignment="Right" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" MaxWidth="380" ToolTip="{Binding ServerSummary}" />
+        </Grid>
+
+        <!-- Status and controls -->
+        <Border Grid.Row="1" Style="{StaticResource Panel}" Padding="16,12" Margin="0,0,0,12">
+            <StackPanel>
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource DangerButton}" Height="28" Margin="12,-2,0,-2" Command="{Binding StopCommand}"
+                            Visibility="{Binding IsRunning, Converter={StaticResource Vis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE71A;" Style="{StaticResource BtnGlyph}" />
+                            <TextBlock Text="Stop server" />
+                        </StackPanel>
+                    </Button>
+                    <Border DockPanel.Dock="Left" CornerRadius="11" Padding="9,2,11,3" Background="{StaticResource SurfaceHi}" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Style="{StaticResource StatusDot}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding StatusText}" FontSize="12.5" FontWeight="SemiBold" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="{Binding StatusDetail}" FontSize="12.5" Foreground="{StaticResource Muted}" Margin="12,0,0,0"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding StatusDetail}" />
+                </DockPanel>
+                <DockPanel Margin="0,10,0,0" LastChildFill="False">
+                    <Button DockPanel.Dock="Left" Style="{StaticResource SmallPrimary}" Command="{Binding LaunchCommand}"
+                            Visibility="{Binding ShowLaunch, Converter={StaticResource Vis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE768;" Style="{StaticResource BtnGlyph}" />
+                            <TextBlock Text="Launch server" />
+                        </StackPanel>
+                    </Button>
+                    <Button DockPanel.Dock="Left" Style="{StaticResource SmallPrimary}" Command="{Binding StartMatchCommand}"
+                            Visibility="{Binding IsRunning, Converter={StaticResource Vis}}"
+                            ToolTip="Players in the lobby spawn and the rotation runs on by itself">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE768;" Style="{StaticResource BtnGlyph}" />
+                            <TextBlock Text="Start match" />
+                        </StackPanel>
+                    </Button>
+                    <Button DockPanel.Dock="Left" Style="{StaticResource Small}" Command="{Binding EndMatchCommand}" ToolTip="End this match; the next map follows">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE7C1;" Style="{StaticResource BtnGlyph}" />
+                            <TextBlock Text="End match" />
+                        </StackPanel>
+                    </Button>
+                    <Button DockPanel.Dock="Left" Style="{StaticResource Small}" Command="{Binding NextMapCommand}" ToolTip="Go to the next map now">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE893;" Style="{StaticResource BtnGlyph}" />
+                            <TextBlock Text="Next map" />
+                        </StackPanel>
+                    </Button>
+                    <Button DockPanel.Dock="Left" Style="{StaticResource Small}" Command="{Binding RestartMapCommand}" ToolTip="Play this map again from the start">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE72C;" Style="{StaticResource BtnGlyph}" />
+                            <TextBlock Text="Restart map" />
+                        </StackPanel>
+                    </Button>
+                    <Button DockPanel.Dock="Left" Style="{StaticResource Small}" Command="{Binding BackToLobbyCommand}" ToolTip="End the match and wait in the lobby again">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE716;" Style="{StaticResource BtnGlyph}" />
+                            <TextBlock Text="Back to lobby" />
+                        </StackPanel>
+                    </Button>
+                </DockPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Tabs -->
+        <Grid Grid.Row="2" Margin="0,0,0,10">
+            <Border Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Padding="3" HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton Style="{StaticResource Segment}" Content="Playlist"
+                                 IsChecked="{Binding Tab, Converter={StaticResource Eq}, ConverterParameter=Playlist}" />
+                    <RadioButton Style="{StaticResource Segment}" Content="{Binding PlayersTab}"
+                                 IsChecked="{Binding Tab, Converter={StaticResource Eq}, ConverterParameter=Players}" />
+                    <RadioButton Style="{StaticResource Segment}" Content="Chat and log"
+                                 IsChecked="{Binding Tab, Converter={StaticResource Eq}, ConverterParameter=Chat}" />
+                    <RadioButton Style="{StaticResource Segment}" Content="Options"
+                                 IsChecked="{Binding Tab, Converter={StaticResource Eq}, ConverterParameter=Options}" />
+                </StackPanel>
+            </Border>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Visibility="{Binding Tab, Converter={StaticResource Show}, ConverterParameter=Playlist}">
+                <TextBlock Text="Drag a mode, or a whole map, into the playlist" Style="{StaticResource Caption}" FontWeight="Normal" VerticalAlignment="Center"
+                           Visibility="{Binding ShowPlaylistScreen, Converter={StaticResource Vis}}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Playlist tab -->
+        <Grid Grid.Row="3" Visibility="{Binding Tab, Converter={StaticResource Show}, ConverterParameter=Playlist}">
+            <Grid Visibility="{Binding ShowPlaylistScreen, Converter={StaticResource Vis}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="292" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Catalog -->
+                <Border Style="{StaticResource Panel}" Padding="10,10,4,6">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid Margin="0,0,6,0">
+                            <TextBox x:Name="SearchBox" Style="{StaticResource Field}" Height="30" Padding="28,0,8,0" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="&#xE721;" Style="{StaticResource Glyph}" FontSize="12" Foreground="{StaticResource Faint}" HorizontalAlignment="Left" Margin="10,0,0,0" IsHitTestVisible="False" />
+                            <TextBlock Text="Search maps and modes" FontSize="12.5" Foreground="{StaticResource Faint}" Margin="29,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                                       Visibility="{Binding Text, ElementName=SearchBox, Converter={StaticResource Show}, ConverterParameter=''}" />
+                        </Grid>
+                        <DockPanel Grid.Row="1" Margin="0,8,6,6">
+                            <CheckBox Style="{StaticResource FilterPill}" Content="Stock" IsChecked="{Binding ShowStock}" />
+                            <CheckBox Style="{StaticResource FilterPill}" Content="Mods" IsChecked="{Binding ShowMods}" Margin="6,0,0,0" />
+                            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE72C;" Width="26" Height="26" FontSize="12"
+                                    Command="{Binding RefreshMapsCommand}" ToolTip="Refresh maps: read the map list from the game again" />
+                            <TextBlock Text="{Binding CatalogCount}" FontSize="11" Foreground="{StaticResource Faint}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,6,0" />
+                        </DockPanel>
+                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Visibility="{Binding CatalogReady, Converter={StaticResource Vis}}">
+                            <ItemsControl ItemsSource="{Binding Maps}" Margin="0,0,6,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:CatalogMapViewModel}">
+                                        <StackPanel>
+                                            <Border x:Name="Head" Background="Transparent" CornerRadius="7" Padding="4,5,2,5" Cursor="Hand"
+                                                    MouseLeftButtonDown="OnDragSourceDown" MouseMove="OnDragSourceMove" MouseLeftButtonUp="OnMapHeadUp"
+                                                    ToolTip="Click to see its modes. Drag it to add every mode.">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="20" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock x:Name="Chevron" Text="&#xE76C;" Style="{StaticResource Glyph}" FontSize="10" Foreground="{StaticResource Faint}" />
+                                                    <StackPanel Grid.Column="1" Margin="2,0,4,0">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis" MaxWidth="186" />
+                                                            <Border Style="{StaticResource Tag}" Background="#33E0A93B" Visibility="{Binding IsMod, Converter={StaticResource Vis}}">
+                                                                <TextBlock Text="MOD" Style="{StaticResource TagText}" Foreground="#E0A93B" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Summary}" FontSize="11" Foreground="{StaticResource Faint}" TextTrimming="CharacterEllipsis" Margin="0,1,0,0" />
+                                                    </StackPanel>
+                                                    <Button Grid.Column="2" Style="{StaticResource IconButton}" Content="&#xE710;" Width="26" Height="26" FontSize="11"
+                                                            Command="{Binding AddAllCommand}" ToolTip="Add every mode" />
+                                                </Grid>
+                                            </Border>
+                                            <ItemsControl ItemsSource="{Binding Chips}" Margin="24,0,0,6" Visibility="{Binding IsExpanded, Converter={StaticResource Vis}}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type vm:CatalogChipViewModel}">
+                                                        <Border x:Name="Chip" CornerRadius="11" Padding="9,3,10,4" Margin="0,4,5,0" Background="{StaticResource SurfaceHi}"
+                                                                BorderBrush="{StaticResource Line}" BorderThickness="1" Cursor="Hand" ToolTip="{Binding Tip}"
+                                                                MouseLeftButtonDown="OnDragSourceDown" MouseMove="OnDragSourceMove">
+                                                            <TextBlock Text="{Binding Label}" FontSize="11.5" Foreground="{StaticResource Text}" />
+                                                        </Border>
+                                                        <DataTemplate.Triggers>
+                                                            <Trigger SourceName="Chip" Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                                            </Trigger>
+                                                        </DataTemplate.Triggers>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                                <Setter TargetName="Chevron" Property="Text" Value="&#xE70D;" />
+                                            </DataTrigger>
+                                            <Trigger SourceName="Head" Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Head" Property="Background" Value="{StaticResource Hover}" />
+                                            </Trigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <StackPanel Grid.Row="2" VerticalAlignment="Center" Margin="10,0,16,30" Visibility="{Binding CatalogReady, Converter={StaticResource NotVis}}">
+                            <TextBlock Text="{Binding CatalogMessage}" Style="{StaticResource Body}" TextAlignment="Center" />
+                            <ProgressBar Style="{StaticResource Thin}" IsIndeterminate="True" Margin="20,12,20,0"
+                                         Visibility="{Binding CatalogStatus, Converter={StaticResource Show}, ConverterParameter=Loading}" />
+                            <Button Style="{StaticResource Small}" Content="Try again" Command="{Binding RefreshMapsCommand}" HorizontalAlignment="Center" Margin="0,12,0,0"
+                                    Visibility="{Binding CatalogStatus, Converter={StaticResource Show}, ConverterParameter=Failed}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Playlist -->
+                <Border x:Name="PlaylistPanel" Grid.Column="2" Style="{StaticResource Panel}" Padding="12,10,6,10" AllowDrop="True"
+                        DragEnter="OnPlaylistDragOver" DragOver="OnPlaylistDragOver" DragLeave="OnPlaylistDragLeave" Drop="OnPlaylistDrop">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <DockPanel Margin="0,0,6,8">
+                            <TextBlock Text="PLAYLIST" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding PlaylistCount}" FontSize="11" Foreground="{StaticResource Faint}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Style="{StaticResource IconButton}" Content="&#xE8B1;" Width="28" Height="28" Command="{Binding ShufflePlaylistCommand}" ToolTip="Shuffle the order" />
+                                <Button Style="{StaticResource IconButton}" Content="&#xE74D;" Width="28" Height="28" Command="{Binding ClearPlaylistCommand}" ToolTip="Clear the playlist" />
+                                <Button Style="{StaticResource SmallPrimary}" Height="28" Margin="8,0,0,0" Command="{Binding ApplyPlaylistCommand}"
+                                        Visibility="{Binding IsRunning, Converter={StaticResource Vis}}"
+                                        ToolTip="Send the playlist to the server. The map being played stays; the new order follows it.">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="6" Height="6" Fill="{StaticResource OnAccent}" Margin="0,0,7,0" VerticalAlignment="Center"
+                                                 Visibility="{Binding PlaylistDirty, Converter={StaticResource Vis}}" />
+                                        <TextBlock Text="Apply playlist" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </DockPanel>
+
+                        <ListBox x:Name="PlaylistList" Grid.Row="1" Style="{StaticResource PlainList}" ItemsSource="{Binding Playlist}"
+                                 SelectedItem="{Binding SelectedEntry}" PreviewKeyDown="OnPlaylistKeyDown" Padding="0,2,6,0">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:PlaylistItemViewModel}">
+                                    <Grid Margin="0,0,0,6">
+                                        <Border x:Name="Row" Background="{StaticResource SurfaceHi}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8"
+                                                Padding="8,6,4,6" MouseLeftButtonDown="OnDragSourceDown" MouseMove="OnDragSourceMove">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="24" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Number}" FontSize="12" Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding MapName}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis" MaxWidth="190" />
+                                                        <Border Style="{StaticResource Tag}" Background="{StaticResource Success}" Visibility="{Binding IsCurrent, Converter={StaticResource Vis}}">
+                                                            <TextBlock Text="NOW" Style="{StaticResource TagText}" Foreground="#0A0D14" />
+                                                        </Border>
+                                                        <Border Style="{StaticResource Tag}" Background="{StaticResource AccentSoft}" Visibility="{Binding IsNext, Converter={StaticResource Vis}}">
+                                                            <TextBlock Text="NEXT" Style="{StaticResource TagText}" Foreground="{StaticResource Accent}" />
+                                                        </Border>
+                                                        <Border Style="{StaticResource Tag}" Background="#33E0A93B" Visibility="{Binding IsMod, Converter={StaticResource Vis}}">
+                                                            <TextBlock Text="MOD" Style="{StaticResource TagText}" Foreground="#E0A93B" />
+                                                        </Border>
+                                                    </StackPanel>
+                                                    <TextBlock x:Name="Detail" Text="{Binding Detail}" FontSize="11.5" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" Margin="0,1,0,0" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                                            ToolTip="Tickets for each team. Blank: the map's own number.">
+                                                    <Grid>
+                                                        <TextBox x:Name="T1" Style="{StaticResource Tiny}" Text="{Binding Tickets1, UpdateSourceTrigger=LostFocus}" />
+                                                        <TextBlock Text="auto" FontSize="11" Foreground="{StaticResource Faint}" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                                                                   Visibility="{Binding Text, ElementName=T1, Converter={StaticResource Show}, ConverterParameter=''}" />
+                                                    </Grid>
+                                                    <TextBlock Text="/" Foreground="{StaticResource Faint}" Margin="4,0" VerticalAlignment="Center" />
+                                                    <Grid>
+                                                        <TextBox x:Name="T2" Style="{StaticResource Tiny}" Text="{Binding Tickets2, UpdateSourceTrigger=LostFocus}" />
+                                                        <TextBlock Text="auto" FontSize="11" Foreground="{StaticResource Faint}" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                                                                   Visibility="{Binding Text, ElementName=T2, Converter={StaticResource Show}, ConverterParameter=''}" />
+                                                    </Grid>
+                                                </StackPanel>
+                                                <Button Grid.Column="3" Style="{StaticResource IconButton}" Content="&#xE711;" Width="26" Height="26" FontSize="10" Margin="4,0,0,0"
+                                                        Command="{Binding RemoveCommand}" ToolTip="Remove (Delete)" />
+                                            </Grid>
+                                        </Border>
+                                        <Border Height="2" CornerRadius="1" Background="{StaticResource Accent}" VerticalAlignment="Top" Margin="2,-4,2,0" IsHitTestVisible="False"
+                                                Visibility="{Binding DropBefore, Converter={StaticResource Vis}}" />
+                                        <Border Height="2" CornerRadius="1" Background="{StaticResource Accent}" VerticalAlignment="Bottom" Margin="2,0,2,2" IsHitTestVisible="False"
+                                                Visibility="{Binding DropAfter, Converter={StaticResource Vis}}" />
+                                    </Grid>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                            <Setter TargetName="Row" Property="BorderBrush" Value="#46557A" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                            <Setter TargetName="Row" Property="Background" Value="#1A4FB477" />
+                                            <Setter TargetName="Row" Property="BorderBrush" Value="#664FB477" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsUnknown}" Value="True">
+                                            <Setter TargetName="Detail" Property="Foreground" Value="{StaticResource Danger}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <Border Grid.Row="1" Margin="0,0,6,0" CornerRadius="10" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="20"
+                                Visibility="{Binding PlaylistEmpty, Converter={StaticResource Vis}}" IsHitTestVisible="False">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="&#xE710;" Style="{StaticResource Glyph}" FontSize="20" Foreground="{StaticResource Faint}" />
+                                <TextBlock Text="Drag maps and modes here" Style="{StaticResource H3}" FontSize="14" HorizontalAlignment="Center" Margin="0,10,0,0" />
+                                <TextBlock Text="or double-click a mode. The first map loads into the lobby; the rest follow in order."
+                                           Style="{StaticResource Body}" FontSize="12.5" TextAlignment="Center" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Border>
+
+                        <Rectangle Grid.Row="1" Margin="-6,-4,0,-4" RadiusX="10" RadiusY="10" StrokeDashArray="5 4" StrokeThickness="1.5" Stroke="{StaticResource Accent}"
+                                   Fill="#143B7DED" IsHitTestVisible="False" Visibility="{Binding PlaylistDragHover, Converter={StaticResource Vis}}" />
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- No map list: the game build is too old, or the game isn't set up -->
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420"
+                        Visibility="{Binding ShowPlaylistScreen, Converter={StaticResource NotVis}}">
+                <Border Width="54" Height="54" CornerRadius="27" Background="{StaticResource AccentSoft}">
+                    <TextBlock Text="&#xE896;" Style="{StaticResource Glyph}" FontSize="22" Foreground="{StaticResource Accent}" />
+                </Border>
+                <TextBlock Text="Update OpenSWBF2 to host from here" Style="{StaticResource H3}" HorizontalAlignment="Center" Margin="0,16,0,0"
+                           Visibility="{Binding CatalogStatus, Converter={StaticResource Show}, ConverterParameter=NeedsUpdate}" />
+                <TextBlock Text="Set up the game first" Style="{StaticResource H3}" HorizontalAlignment="Center" Margin="0,16,0,0"
+                           Visibility="{Binding CatalogStatus, Converter={StaticResource Show}, ConverterParameter=NotInstalled}" />
+                <TextBlock Text="{Binding CatalogMessage}" Style="{StaticResource Body}" TextAlignment="Center" Margin="0,6,0,0" />
+                <Button Style="{StaticResource Small}" Content="Check for updates" Command="{Binding CheckUpdatesCommand}" HorizontalAlignment="Center" Margin="0,16,0,0"
+                        Visibility="{Binding CatalogStatus, Converter={StaticResource Show}, ConverterParameter=NeedsUpdate}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Players tab -->
+        <Border Grid.Row="3" Style="{StaticResource Panel}" Padding="14,10,8,10"
+                Visibility="{Binding Tab, Converter={StaticResource Show}, ConverterParameter=Players}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid Margin="0,0,6,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="64" />
+                        <ColumnDefinition Width="70" />
+                        <ColumnDefinition Width="64" />
+                        <ColumnDefinition Width="104" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="NAME" Style="{StaticResource Caption}" />
+                    <TextBlock Grid.Column="1" Text="TEAM" Style="{StaticResource Caption}" />
+                    <TextBlock Grid.Column="2" Text="SCORE" Style="{StaticResource Caption}" />
+                    <TextBlock Grid.Column="3" Text="K / D" Style="{StaticResource Caption}" />
+                    <TextBlock Grid.Column="4" Text="PING" Style="{StaticResource Caption}" />
+                </Grid>
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Players}" Margin="0,0,6,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:PlayerRowViewModel}">
+                                <Border x:Name="Row" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,5" Background="Transparent">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="64" />
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="64" />
+                                            <ColumnDefinition Width="104" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Ellipse x:Name="TeamDot" Width="7" Height="7" Fill="{StaticResource Faint}" Margin="0,1,7,0" />
+                                            <TextBlock Text="{Binding Team}" FontSize="12.5" Foreground="{StaticResource Muted}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" Text="{Binding Score}" FontSize="12.5" Foreground="{StaticResource Text}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="3" Text="{Binding KillsDeaths}" FontSize="12.5" Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="4" Text="{Binding Ping}" FontSize="12.5" Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="5" Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <Button Style="{StaticResource IconButton}" Content="&#xE8BD;" Width="30" Height="28" Command="{Binding MessageCommand}" ToolTip="Message (in the all-chat)" />
+                                            <Button Style="{StaticResource IconButton}" Content="&#xE8AB;" Width="30" Height="28" Command="{Binding SwapCommand}" ToolTip="Swap team" />
+                                            <Button Style="{StaticResource IconButton}" Content="&#xE8F8;" Width="30" Height="28" Command="{Binding KickCommand}" ToolTip="Kick" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding TeamNumber}" Value="1">
+                                        <Setter TargetName="TeamDot" Property="Fill" Value="{StaticResource Accent}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding TeamNumber}" Value="2">
+                                        <Setter TargetName="TeamDot" Property="Fill" Value="{StaticResource Danger}" />
+                                    </DataTrigger>
+                                    <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Row" Property="Background" Value="{StaticResource Hover}" />
+                                    </Trigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                <TextBlock Grid.Row="1" Style="{StaticResource Body}" TextAlignment="Center" VerticalAlignment="Center" Margin="40,0,40,30"
+                           Visibility="{Binding NoPlayers, Converter={StaticResource Vis}}"
+                           Text="No one has joined yet. Players use Direct Connect with this PC's address and the server's port." />
+            </Grid>
+        </Border>
+
+        <!-- Chat and log tab -->
+        <Border Grid.Row="3" Style="{StaticResource Panel}" Padding="14,10,8,10"
+                Visibility="{Binding Tab, Converter={StaticResource Show}, ConverterParameter=Chat}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <ListBox x:Name="MessageList" Style="{StaticResource PlainList}" ItemsSource="{Binding MessagesView}" Padding="0,0,6,0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ChatLine}">
+                            <Grid Margin="0,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="62" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding TimeText}" FontSize="11" Foreground="{StaticResource Faint}" Margin="0,1,0,0" />
+                                <TextBlock x:Name="Line" Grid.Column="1" Text="{Binding Text}" FontSize="12.5" Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                            </Grid>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Kind}" Value="Event">
+                                    <Setter TargetName="Line" Property="Foreground" Value="{StaticResource Accent}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Kind}" Value="Admin">
+                                    <Setter TargetName="Line" Property="Foreground" Value="{StaticResource Success}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Kind}" Value="Log">
+                                    <Setter TargetName="Line" Property="Foreground" Value="{StaticResource Faint}" />
+                                    <Setter TargetName="Line" Property="FontFamily" Value="Consolas" />
+                                    <Setter TargetName="Line" Property="FontSize" Value="11.5" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <DockPanel Grid.Row="1" Margin="0,10,6,0">
+                    <CheckBox DockPanel.Dock="Left" Style="{StaticResource Switch}" Content="Server log" FontSize="12.5" IsChecked="{Binding ShowServerLog}" Margin="0,0,14,0" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource SmallPrimary}" Margin="8,0,0,0" Command="{Binding SayCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE724;" Style="{StaticResource BtnGlyph}" />
+                            <TextBlock Text="Say" />
+                        </StackPanel>
+                    </Button>
+                    <Grid>
+                        <TextBox x:Name="SayBox" Style="{StaticResource Field}" Height="32" MaxLength="49" Text="{Binding SayText, UpdateSourceTrigger=PropertyChanged}">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Enter" Command="{Binding SayCommand}" />
+                            </TextBox.InputBindings>
+                        </TextBox>
+                        <TextBlock Text="Say to everyone" FontSize="12.5" Foreground="{StaticResource Faint}" Margin="11,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                                   Visibility="{Binding Text, ElementName=SayBox, Converter={StaticResource Show}, ConverterParameter=''}" />
+                    </Grid>
+                </DockPanel>
+            </Grid>
+        </Border>
+
+        <!-- Options tab -->
+        <Grid Grid.Row="3" Visibility="{Binding Tab, Converter={StaticResource Show}, ConverterParameter=Options}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border Background="{StaticResource AccentSoft}" CornerRadius="10" Padding="14,8,8,8" Margin="0,0,0,10">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource SmallPrimary}" Margin="0" Height="30" Content="Apply options" Command="{Binding ApplyOptionsCommand}" />
+                    <TextBlock Text="&#xE946;" Style="{StaticResource Glyph}" FontSize="13" Foreground="{StaticResource Accent}" Margin="0,0,10,0" />
+                    <TextBlock VerticalAlignment="Center" FontSize="12.5" Foreground="{StaticResource Text}" TextWrapping="Wrap" Margin="0,0,12,0"
+                               Text="These apply from the next map. Name, port, tick rate and passwords change only when the server starts again." />
+                </DockPanel>
+            </Border>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <views:ServerOptionsView DataContext="{Binding LiveOptions}" Margin="0,0,8,0" />
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>
