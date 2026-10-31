@@ -13,6 +13,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenBattlefront.Tests", "te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenBattlefront", "src\OpenBattlefront\OpenBattlefront.csproj", "{CA304EE7-B6E3-4BE4-802F-612E89A50B4B}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{C8A90B5E-F8E7-4730-8616-65B9F4B60730}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenBattlefront.Pack", "tools\OpenBattlefront.Pack\OpenBattlefront.Pack.csproj", "{61B87C82-4E58-4180-AD37-22436713FDDA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -34,10 +38,15 @@ Global
 		{CA304EE7-B6E3-4BE4-802F-612E89A50B4B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CA304EE7-B6E3-4BE4-802F-612E89A50B4B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CA304EE7-B6E3-4BE4-802F-612E89A50B4B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{61B87C82-4E58-4180-AD37-22436713FDDA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{61B87C82-4E58-4180-AD37-22436713FDDA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{61B87C82-4E58-4180-AD37-22436713FDDA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{61B87C82-4E58-4180-AD37-22436713FDDA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{12CFFC40-7831-42AB-BAE9-95499EBF9EF2} = {6EDEA79A-76EC-45F6-A50B-27FA52B5D940}
 		{DFAF5AE2-B517-4580-84E7-10917DAD2CCA} = {74B9F2A5-9955-402A-8A0A-4D84740B6A99}
 		{CA304EE7-B6E3-4BE4-802F-612E89A50B4B} = {6EDEA79A-76EC-45F6-A50B-27FA52B5D940}
+		{61B87C82-4E58-4180-AD37-22436713FDDA} = {C8A90B5E-F8E7-4730-8616-65B9F4B60730}
 	EndGlobalSection
 EndGlobal

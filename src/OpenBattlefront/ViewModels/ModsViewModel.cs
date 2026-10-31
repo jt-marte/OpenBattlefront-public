@@ -28,6 +28,7 @@ public sealed class ModsViewModel : ObservableObject
     public bool IsEmpty => CanManage && Items.Count == 0;
     public bool HasItems => CanManage && Items.Count > 0;
     public bool HasScriptItems => CanManage && ScriptItems.Count > 0;
+    public bool HasEssentials => CanManage && Essentials.Count > 0;
     public bool CanManage => _main.Setup.State.ImportComplete;
 
     /// <summary>The footer: whether mods made for the 1.3 patch work with the installed build.</summary>
@@ -47,7 +48,7 @@ public sealed class ModsViewModel : ObservableObject
         Essentials.Clear();
         if (CanManage)
         {
-            foreach (var mod in Manager.List())
+            foreach (var mod in Manager.List(GameContent.Installed(_main.Setup.State)))
                 Items.Add(new ModItemViewModel(this, mod));
             foreach (var mod in Scripts.List())
                 ScriptItems.Add(new ScriptModItemViewModel(this, mod));
@@ -57,6 +58,7 @@ public sealed class ModsViewModel : ObservableObject
         Raise(nameof(IsEmpty));
         Raise(nameof(HasItems));
         Raise(nameof(HasScriptItems));
+        Raise(nameof(HasEssentials));
         Raise(nameof(CanManage));
         Raise(nameof(PatchNote));
     }
@@ -182,8 +184,13 @@ public sealed class ModItemViewModel : ObservableObject
 
     public ModInfo Mod { get; set; }
     public string Name => Mod.Name;
-    public string State => Mod.IsPatch ? "Not needed: built into OpenSWBF2" : Mod.Enabled ? "On" : "Off";
+    public string State => Mod.IsPatch ? "Not needed: built into OpenSWBF2"
+        : Mod.IsIncluded ? (Mod.Enabled ? "Included" : "Included, off")
+        : Mod.Enabled ? "On" : "Off";
     public bool CanToggle => !Mod.IsPatch;
+
+    /// <summary>Included content stays: the launcher would only bring it back.</summary>
+    public bool CanRemove => !Mod.IsIncluded;
 
     public bool Enabled
     {

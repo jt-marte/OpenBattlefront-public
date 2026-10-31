@@ -5,12 +5,16 @@ namespace OpenBattlefront.Tests;
 
 public class EssentialModsTests
 {
+    private static readonly CatalogMod Xbox = new(
+        "xbox-dlc", "Xbox DLC", "Maps and heroes.", "Author", "https://www.moddb.com/mods/xbox",
+        new[] { "DLC_XBOX", "UPDATE_XBOX" }, Available: true);
+
     [Fact]
-    public void Only_the_Xbox_DLC_is_offered_while_the_pack_needs_its_installer()
+    public void Nothing_is_offered_now_the_launcher_includes_the_pack_and_the_DLC()
     {
-        Assert.Equal(new[] { "xbox-dlc" }, EssentialMods.All.Where(m => m.Available).Select(m => m.Id));
-        Assert.All(EssentialMods.All.Where(m => !m.Available), m => Assert.NotNull(m.Note));
-        Assert.All(EssentialMods.All, m => Assert.StartsWith("https://www.moddb.com/", m.PageUrl));
+        Assert.Empty(EssentialMods.All);
+        using var temp = new TempDir();
+        Assert.Empty(EssentialMods.Missing(new InstallLayout(temp.Sub("L"))));
     }
 
     [Fact]
@@ -18,20 +22,18 @@ public class EssentialModsTests
     {
         using var temp = new TempDir();
         var layout = new InstallLayout(temp.Sub("L"));
-        var xbox = EssentialMods.All.Single(m => m.Id == "xbox-dlc");
-        Assert.Contains(xbox, EssentialMods.Missing(layout));
+        Assert.False(EssentialMods.IsInstalled(layout, Xbox));
 
         Directory.CreateDirectory(Path.Combine(layout.AddOn, "DLC_XBOX"));
-        Assert.False(EssentialMods.IsInstalled(layout, xbox));
+        Assert.False(EssentialMods.IsInstalled(layout, Xbox));
         Directory.CreateDirectory(Path.Combine(layout.AddOnDisabled, "UPDATE_XBOX"));
-        Assert.True(EssentialMods.IsInstalled(layout, xbox));
-        Assert.Empty(EssentialMods.Missing(layout));
+        Assert.True(EssentialMods.IsInstalled(layout, Xbox));
 
         // What the launcher recorded at install time wins over the catalog's folder names.
         var recorded = new Dictionary<string, string[]> { ["xbox-dlc"] = new[] { "ADDON_XBOX" } };
-        Assert.False(EssentialMods.IsInstalled(layout, xbox, recorded));
+        Assert.False(EssentialMods.IsInstalled(layout, Xbox, recorded));
         Directory.CreateDirectory(Path.Combine(layout.AddOn, "ADDON_XBOX"));
-        Assert.True(EssentialMods.IsInstalled(layout, xbox, recorded));
+        Assert.True(EssentialMods.IsInstalled(layout, Xbox, recorded));
     }
 
     [Fact]
@@ -53,7 +55,7 @@ public class EssentialModsTests
 
         var layout = new InstallLayout(temp.Sub("L"));
         Assert.Equal(new[] { "DLC_XBOX", "UPDATE_XBOX" }, new ModManager(layout).Install(archive).Order());
-        Assert.True(EssentialMods.IsInstalled(layout, EssentialMods.All[0]));
+        Assert.True(EssentialMods.IsInstalled(layout, Xbox));
     }
 
     [Theory]

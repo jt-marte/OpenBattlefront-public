@@ -178,8 +178,22 @@ public sealed class MainViewModel : ObservableObject
     {
         DisablePatch();
         Play.Refresh();
+        await InstallContentAsync();
         if (Setup.IsReady && Setup.State.CheckUpdatesOnStart) await Play.CheckForUpdateAsync(silent: true);
         else if (Setup.State.ImportComplete && !Setup.IsReady) await Play.LoadLatestAsync();
+    }
+
+    /// <summary>The Conversion Pack and the Xbox DLC come with the launcher: put them in the game
+    /// copy once it is imported, and again when a launcher brings a new version of them.</summary>
+    private async Task InstallContentAsync()
+    {
+        if (!Setup.NeedsContent) return;
+        bool added = false;
+        var error = await Activity.RunAsync("Adding the included content",
+            async (progress, ct) => added = await Setup.InstallContentAsync(progress, ct), cancellable: true);
+        if (error != null) ShowError(error);
+        else if (added) ShowNotice(GameContent.AddedNotice);
+        Mods.Refresh();
     }
 
     /// <summary>An older import brought the unofficial 1.3 patch along; switch it off once.</summary>

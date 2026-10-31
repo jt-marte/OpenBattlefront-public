@@ -26,50 +26,52 @@
             <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding CanManage, Converter={StaticResource Vis}}">
                 <StackPanel Margin="0,0,8,0">
 
-                    <!-- Essential mods: fetched from their authors' ModDB pages -->
-                    <TextBlock Text="ESSENTIAL MODS" Style="{StaticResource Caption}" Margin="2,0,0,8" />
-                    <ItemsControl ItemsSource="{Binding Essentials}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10"
-                                        Padding="16,12,12,12" Margin="0,0,0,8">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Style="{StaticResource H3}" FontSize="14">
-                                                <Run Text="{Binding Name, Mode=OneWay}" />
-                                                <Run Text="{Binding Byline, Mode=OneWay}" FontSize="12" FontWeight="Normal" Foreground="{StaticResource Faint}" />
-                                            </TextBlock>
-                                            <TextBlock Text="{Binding Summary}" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,3,0,0" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0">
-                                            <Button Style="{StaticResource PrimaryButton}" Height="32" Padding="16,0" Command="{Binding GetCommand}"
-                                                    Visibility="{Binding CanGet, Converter={StaticResource Vis}}">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="&#xE896;" Style="{StaticResource Glyph}" FontSize="12" />
-                                                    <TextBlock Text="Get" Margin="8,0,0,0" VerticalAlignment="Center" />
-                                                </StackPanel>
-                                            </Button>
-                                            <StackPanel Orientation="Horizontal" Visibility="{Binding IsInstalled, Converter={StaticResource Vis}}">
-                                                <TextBlock Text="&#xE73E;" Style="{StaticResource Glyph}" FontSize="12" Foreground="{StaticResource Success}" />
-                                                <TextBlock Text="Installed" FontSize="12.5" Foreground="{StaticResource Muted}" Margin="8,0,4,0" VerticalAlignment="Center" />
+                    <!-- Essential mods: fetched from their authors' ModDB pages (none listed while the launcher includes them) -->
+                    <StackPanel Visibility="{Binding HasEssentials, Converter={StaticResource Vis}}" Margin="0,0,0,14">
+                        <TextBlock Text="ESSENTIAL MODS" Style="{StaticResource Caption}" Margin="2,0,0,8" />
+                        <ItemsControl ItemsSource="{Binding Essentials}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10"
+                                            Padding="16,12,12,12" Margin="0,0,0,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Style="{StaticResource H3}" FontSize="14">
+                                                    <Run Text="{Binding Name, Mode=OneWay}" />
+                                                    <Run Text="{Binding Byline, Mode=OneWay}" FontSize="12" FontWeight="Normal" Foreground="{StaticResource Faint}" />
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding Summary}" FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,3,0,0" />
                                             </StackPanel>
-                                            <Border CornerRadius="11" Padding="10,3" Background="{StaticResource SurfaceHi}" BorderBrush="{StaticResource Line}" BorderThickness="1"
-                                                    Visibility="{Binding IsComing, Converter={StaticResource Vis}}" ToolTip="{Binding Note}">
-                                                <TextBlock Text="Coming later" FontSize="11.5" Foreground="{StaticResource Faint}" />
-                                            </Border>
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0">
+                                                <Button Style="{StaticResource PrimaryButton}" Height="32" Padding="16,0" Command="{Binding GetCommand}"
+                                                        Visibility="{Binding CanGet, Converter={StaticResource Vis}}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="&#xE896;" Style="{StaticResource Glyph}" FontSize="12" />
+                                                        <TextBlock Text="Get" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <StackPanel Orientation="Horizontal" Visibility="{Binding IsInstalled, Converter={StaticResource Vis}}">
+                                                    <TextBlock Text="&#xE73E;" Style="{StaticResource Glyph}" FontSize="12" Foreground="{StaticResource Success}" />
+                                                    <TextBlock Text="Installed" FontSize="12.5" Foreground="{StaticResource Muted}" Margin="8,0,4,0" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                                <Border CornerRadius="11" Padding="10,3" Background="{StaticResource SurfaceHi}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                                                        Visibility="{Binding IsComing, Converter={StaticResource Vis}}" ToolTip="{Binding Note}">
+                                                    <TextBlock Text="Coming later" FontSize="11.5" Foreground="{StaticResource Faint}" />
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
 
                     <!-- What's installed -->
-                    <TextBlock Text="INSTALLED" Style="{StaticResource Caption}" Margin="2,14,0,8" />
+                    <TextBlock Text="INSTALLED" Style="{StaticResource Caption}" Margin="2,0,0,8" />
                     <ItemsControl ItemsSource="{Binding Items}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -88,7 +90,8 @@
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                             <Button Style="{StaticResource IconButton}" Content="&#xE838;" Command="{Binding OpenCommand}" ToolTip="Open folder" />
-                                            <Button Style="{StaticResource IconButton}" Content="&#xE74D;" Command="{Binding RemoveCommand}" ToolTip="Remove" />
+                                            <Button Style="{StaticResource IconButton}" Content="&#xE74D;" Command="{Binding RemoveCommand}" ToolTip="Remove"
+                                                    Visibility="{Binding CanRemove, Converter={StaticResource Vis}}" />
                                         </StackPanel>
                                     </Grid>
                                 </Border>

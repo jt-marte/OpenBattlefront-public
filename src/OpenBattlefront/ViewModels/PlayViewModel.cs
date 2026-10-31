@@ -85,6 +85,8 @@ public sealed class PlayViewModel : ObservableObject
         }
     }
 
+    public bool OffersEssentials => EssentialMods.All.Any(m => m.Available);
+
     public string EssentialsLabel => "Get the essential mods: " + string.Join(", ", EssentialMods.All.Where(m => m.Available).Select(m => m.Name));
 
     public string? InvalidMessage { get => _invalidMessage; private set => Set(ref _invalidMessage, value); }
@@ -215,6 +217,7 @@ public sealed class PlayViewModel : ObservableObject
     {
         string source = _source!;
         var options = new ImportOptions(ImportMods);
+        string? contentBefore = Setup.State.ContentVersion;
         var error = await Activity.RunAsync("Importing", async (progress, ct) =>
         {
             await Setup.ImportAsync(source, options, progress, ct);
@@ -226,8 +229,10 @@ public sealed class PlayViewModel : ObservableObject
         }, cancellable: true);
 
         Refresh(keepReview: false);
+        bool addedContent = Setup.State.ContentVersion != contentBefore;
         if (error != null) _main.ShowError(error, "Import paused. Use Resume to carry on where it stopped.");
-        else if (Setup.IsReady) _main.ShowNotice("All set. Have fun out there.");
+        else if (Setup.IsReady) _main.ShowNotice((addedContent ? GameContent.AddedNotice + " " : "") + "All set. Have fun out there.");
+        else if (addedContent) _main.ShowNotice(GameContent.AddedNotice);
         if (Stage == PlayStage.NeedsBuild) await LoadLatestAsync();
         if (error == null) await _main.OfferEssentialsAsync();
     }

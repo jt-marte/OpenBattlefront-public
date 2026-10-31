@@ -12,6 +12,9 @@ Star Wars Battlefront II (2005). Point it at your copy of the game and press **P
 - **One-click updates** from OpenSWBF2's GitHub releases, keeping the previous build so you can roll
   back.
 - **Mods:** drop a mod folder or `.zip`, switch mods on and off, remove them to the Recycle Bin.
+- **Included content:** the launcher package carries the Battlefront Conversion Pack and the Xbox
+  DLC, put into the game copy once it is imported (no download, every file SHA-256 checked). They
+  show as "Included" on the Mods page: switch them off if you like.
 - **Server manager:** coming soon.
 
 ## What you need
@@ -44,6 +47,12 @@ dotnet test
 
 `publish.ps1` makes one self-contained `dist\OpenBattlefront.exe`. `.\publish.ps1 -Small` makes a
 much smaller exe that needs the .NET 8 Desktop Runtime.
+
+`.\publish.ps1 -Content [<AddOn dir>]` also makes `dist\OpenBattlefront-<version>.zip`: the exe plus
+`Content\AddOn\BF1`, `Content\AddOn\DLC_XBOX` and `Content\content.json` (each file's size and
+SHA-256). The AddOn dir defaults to the launcher's own game copy. Only those two folders are taken:
+never the Xbox Title Update (`UPDATE_XBOX`), the unofficial 1.3 patch or any `.exe`, `.dll` or `.bat`.
+The launcher installs the content again whenever the content version changes.
 
 For development, `OpenBattlefront.exe --state <file>` uses another `launcher.json` (and so another
 install), and `--screenshot <dir>` saves each page as a PNG and exits.

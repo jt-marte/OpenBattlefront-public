@@ -18,6 +18,9 @@ public sealed class LauncherState
     public string? InstalledVersion { get; set; }
     public string? PreviousVersion { get; set; }
 
+    /// <summary>The version of the included content (GameContent) last put in Game\AddOn.</summary>
+    public string? ContentVersion { get; set; }
+
     /// <summary>"game" uses the in-game setting; "vulkan" or "d3d9" override it for each run.</summary>
     public string Renderer { get; set; } = "game";
     public bool Borderless { get; set; }

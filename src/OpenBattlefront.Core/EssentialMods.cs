@@ -14,29 +14,11 @@ public sealed record CatalogMod(
 
 public static class EssentialMods
 {
-    public static readonly IReadOnlyList<CatalogMod> All = new[]
-    {
-        new CatalogMod(
-            "xbox-dlc",
-            "Xbox DLC and Title Update content",
-            "Bespin, Rhen Var, Rhen Var Harbor and Yavin Arena, Kit Fisto and Asajj Ventress, and the Kashyyyk Hero Assault.",
-            "iamastupid",
-            "https://www.moddb.com/mods/xbox-dlc-content-for-pc/downloads/xbox-dlc-and-title-update-content-for-pc",
-            new[] { "DLC_XBOX", "UPDATE_XBOX" },
-            Available: true),
-        // OpenSWBF2 0.2.0 runs it (1.3-style mod support is built in), but it ships as an .exe
-        // installer, which the launcher doesn't unpack yet. (The Remaster is not offered: it
-        // replaces OpenSWBF2's own menus, and its AI heroes and award options are built in.)
-        new CatalogMod(
-            "conversion-pack",
-            "Battlefront Conversion Pack",
-            "The original Battlefront's maps and sides, rebuilt for Battlefront II.",
-            "Conversion Pack team",
-            "https://www.moddb.com/addons/battlefront-conversion-pack-20",
-            new[] { "BF1" },
-            Available: false,
-            Note: "It comes as an installer the launcher can't unpack yet. Install it into your own game, then drop its BF1 folder here."),
-    };
+    /// <summary>Empty for now: the Battlefront Conversion Pack and the Xbox DLC come inside the
+    /// launcher's package (GameContent), and the Xbox Title Update is left out on purpose. (The
+    /// Remaster is not offered: it replaces OpenSWBF2's own menus, and its AI heroes and award
+    /// options are built in.) The page and the download window come back when a mod is listed.</summary>
+    public static readonly IReadOnlyList<CatalogMod> All = Array.Empty<CatalogMod>();
 
     /// <summary>Installed means every folder it brings is in AddOn\ (or switched off in
     /// AddOn_disabled\). The folders the launcher recorded when it installed the mod win over

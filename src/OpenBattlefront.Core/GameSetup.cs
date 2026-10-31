@@ -2,7 +2,8 @@ namespace OpenBattlefront.Core;
 
 /// <summary>
 /// The launcher's jobs, in the order a first run does them: import the player's game data,
-/// install an OpenSWBF2 build, build the core lvls. Updates and rollback reuse the same steps.
+/// install an OpenSWBF2 build, build the core lvls, add the included content. Updates and
+/// rollback reuse the same steps.
 /// </summary>
 public sealed class GameSetup
 {
@@ -11,15 +12,18 @@ public sealed class GameSetup
     private readonly Version _launcherVersion;
     private readonly HttpClient _http;
 
-    public GameSetup(LauncherState state, string stateFile, Version launcherVersion)
+    /// <param name="content">The included content; Content\ next to the exe by default.</param>
+    public GameSetup(LauncherState state, string stateFile, Version launcherVersion, GameContent? content = null)
     {
         State = state;
         _stateFile = stateFile;
         _launcherVersion = launcherVersion;
         _http = ReleaseClient.CreateHttp(launcherVersion);
+        Content = content ?? new GameContent(GameContent.DefaultDir);
     }
 
     public LauncherState State { get; }
+    public GameContent Content { get; }
     public InstallLayout Layout => State.Layout;
     public BuildStore Builds => new(Layout);
     public ReleaseClient Releases => new(State.UpdateRepo, _http);
@@ -80,6 +84,33 @@ public sealed class GameSetup
         Save();
 
         if (Installed is { } manifest) await BuildLvlsAsync(manifest, progress, ct);
+        await InstallContentAsync(progress, ct);
+    }
+
+    /// <summary>Whether the launcher carries included content the game copy doesn't have yet. A
+    /// broken content.json counts, so that installing it reports the problem.</summary>
+    public bool NeedsContent
+    {
+        get
+        {
+            if (!State.ImportComplete) return false;
+            try { return Content.Load() is { } manifest && manifest.Version != State.ContentVersion; }
+            catch (Exception e) when (e is InvalidDataException or IOException) { return true; }
+        }
+    }
+
+    /// <summary>Puts the included content in Game\AddOn once the game is imported, the first time
+    /// and whenever the launcher brings a new version of it. Returns whether it did.</summary>
+    public async Task<bool> InstallContentAsync(IProgress<StepUpdate> progress, CancellationToken ct)
+    {
+        if (!State.ImportComplete) return false;
+        var content = Content.Load();
+        if (content == null || content.Version == State.ContentVersion) return false;
+        if (GameLauncher.IsRunning(Layout)) throw new InvalidOperationException("Close the game first.");
+        await Task.Run(() => Content.InstallAsync(content, Layout, progress, ct), ct);
+        State.ContentVersion = content.Version;
+        Save();
+        return true;
     }
 
     public async Task<ReleaseInfo?> GetLatestReleaseAsync(CancellationToken ct) => await Releases.GetLatestAsync(ct);

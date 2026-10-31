@@ -1,6 +1,7 @@
 namespace OpenBattlefront.Core;
 
-public sealed record ModInfo(string Name, string Path, bool Enabled)
+/// <param name="IsIncluded">One of the folders that came with the launcher (GameContent).</param>
+public sealed record ModInfo(string Name, string Path, bool Enabled, bool IsIncluded = false)
 {
     /// <summary>The unofficial 1.3 patch's addon, which stays off: OpenSWBF2 has its support built in.</summary>
     public bool IsPatch => ScriptMods.IsPatchAddOn(Name);
@@ -17,12 +18,14 @@ public sealed class ModManager
 
     public ModManager(InstallLayout layout) => _layout = layout;
 
-    public IReadOnlyList<ModInfo> List()
+    /// <param name="included">The folders the launcher put there itself (GameContent.Installed).</param>
+    public IReadOnlyList<ModInfo> List(IReadOnlyCollection<string>? included = null)
     {
         var mods = new List<ModInfo>();
+        bool IsIncluded(string name) => included?.Contains(name, StringComparer.OrdinalIgnoreCase) == true;
         foreach (var (dir, enabled) in new[] { (_layout.AddOn, true), (_layout.AddOnDisabled, false) })
             if (Directory.Exists(dir))
-                mods.AddRange(Directory.GetDirectories(dir).Select(d => new ModInfo(Path.GetFileName(d), d, enabled)));
+                mods.AddRange(Directory.GetDirectories(dir).Select(d => new ModInfo(Path.GetFileName(d), d, enabled, IsIncluded(Path.GetFileName(d)))));
         return mods.OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
