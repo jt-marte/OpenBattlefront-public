@@ -146,8 +146,12 @@ public sealed class ModSyncClient
             if (item.Action == ModSyncAction.New) PlaceNew(item, cache);
             else PlaceUpdate(item, cache);
         }
-        string serverDir = DownloadDir(server);
-        if (Directory.Exists(serverDir) && !Directory.EnumerateFileSystemEntries(serverDir).Any()) Directory.Delete(serverDir);
+        // Downloads\server-mods\<server>, then server-mods itself, once nothing waits there
+        for (string? dir = DownloadDir(server); dir != null && dir.StartsWith(_layout.Downloads + "\\", StringComparison.OrdinalIgnoreCase); dir = Path.GetDirectoryName(dir))
+        {
+            if (!Directory.Exists(dir) || Directory.EnumerateFileSystemEntries(dir).Any()) break;
+            Directory.Delete(dir);
+        }
     }
 
     private void Enable(string name)

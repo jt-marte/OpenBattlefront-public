@@ -280,8 +280,7 @@ public class ServerModsTests
         await f.SyncAsync();
         Assert.Equal("bf1 addme", File.ReadAllText(f.Installed("BF1/addme.script")));
         Assert.Equal(f.Map, File.ReadAllBytes(f.Installed("BF1/data/_lvl_pc/bf1.lvl")));
-        Assert.False(Directory.Exists(Path.Combine(f.Layout.Downloads, "server-mods")) &&
-            Directory.EnumerateFileSystemEntries(Path.Combine(f.Layout.Downloads, "server-mods")).Any());
+        Assert.False(Directory.Exists(Path.Combine(f.Layout.Downloads, "server-mods")));
         Assert.Contains(f.Server.Requests, r => r.Path == "/mods/BF1/data/_lvl_pc/bf1.lvl");
 
         // Joining again downloads nothing

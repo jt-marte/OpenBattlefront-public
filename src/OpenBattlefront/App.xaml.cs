@@ -24,9 +24,10 @@ public partial class App : Application
         base.OnStartup(e);
         DispatcherUnhandledException += OnUnhandled;
 
-        // One launcher at a time: starting it again brings the open one forward.
+        // One launcher at a time: starting it again brings the open one forward. Another install
+        // (--state) can run beside it.
         _single = new Mutex(true, "OpenBattlefront.Launcher", out bool first);
-        if (!first && Arg(e.Args, "--screenshot") == null)
+        if (!first && Arg(e.Args, "--screenshot") == null && Arg(e.Args, "--state") == null)
         {
             ShowRunningLauncher();
             Shutdown();
