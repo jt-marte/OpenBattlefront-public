@@ -182,6 +182,8 @@ public sealed class MainViewModel : ObservableObject
     {
         DisablePatch();
         Play.Refresh();
+        if (!Directory.Exists(Setup.Content.Dir) && GameContent.StartedFromTemp(AppContext.BaseDirectory, Path.GetTempPath()))
+            ShowNotice(GameContent.UnzipFirst, error: true);
         await InstallContentAsync();
         if (Setup.IsReady && Setup.State.CheckUpdatesOnStart) await Play.CheckForUpdateAsync(silent: true);
         else if (Setup.State.ImportComplete && !Setup.IsReady) await Play.LoadLatestAsync();

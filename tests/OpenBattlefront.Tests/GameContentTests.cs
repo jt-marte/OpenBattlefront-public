@@ -15,6 +15,14 @@ public class GameContentTests
     public void Only_the_pack_and_the_Xbox_DLC_are_allowed(string folder, bool allowed) =>
         Assert.Equal(allowed, GameContent.IsAllowedFolder(folder));
 
+    [Theory]
+    [InlineData(@"C:\Users\Pat\AppData\Local\Temp\Temp1_OpenBattlefront-0.2.0.zip\", true)]
+    [InlineData(@"C:\Users\Pat\AppData\Local\Temp", true)]
+    [InlineData(@"C:\Users\Pat\Downloads\OpenBattlefront-0.2.0\", false)]
+    [InlineData(@"C:\Users\Pat\AppData\Local\Temporary\OpenBattlefront\", false)]
+    public void Started_straight_from_the_zip_means_a_temp_folder(string exeDir, bool fromTemp) =>
+        Assert.Equal(fromTemp, GameContent.StartedFromTemp(exeDir, @"C:\Users\Pat\AppData\Local\Temp\"));
+
     [Fact]
     public void Packing_leaves_out_the_Title_Update_the_patch_and_other_mods()
     {

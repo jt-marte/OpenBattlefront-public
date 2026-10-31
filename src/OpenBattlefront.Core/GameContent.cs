@@ -128,6 +128,15 @@ public sealed class GameContent
     /// <summary>Content\ next to the launcher's exe.</summary>
     public static string DefaultDir => Path.Combine(AppContext.BaseDirectory, "Content");
 
+    public const string UnzipFirst =
+        "Unzip the whole OpenBattlefront download first, then start OpenBattlefront.exe from that folder: " +
+        "the Conversion Pack and Xbox DLC come with it.";
+
+    /// <summary>Windows starts an exe straight out of a zip from a temp folder, without the rest of
+    /// the zip, so the included content isn't beside it.</summary>
+    public static bool StartedFromTemp(string exeDir, string tempDir) =>
+        (Path.GetFullPath(exeDir).TrimEnd('\\') + "\\").StartsWith(Path.GetFullPath(tempDir).TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
+
     public string Dir { get; }
 
     public static bool IsAllowedFolder(string folder) => Folders.Contains(folder, StringComparer.OrdinalIgnoreCase);
