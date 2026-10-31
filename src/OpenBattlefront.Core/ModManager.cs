@@ -1,6 +1,10 @@
 namespace OpenBattlefront.Core;
 
-public sealed record ModInfo(string Name, string Path, bool Enabled);
+public sealed record ModInfo(string Name, string Path, bool Enabled)
+{
+    /// <summary>The unofficial 1.3 patch's addon, which stays off: OpenSWBF2 has its support built in.</summary>
+    public bool IsPatch => ScriptMods.IsPatchAddOn(Name);
+}
 
 /// <summary>
 /// Mods live in Game\AddOn\&lt;folder&gt; (each with an addme.script). Turning one off moves it to
@@ -41,7 +45,9 @@ public sealed class ModManager
         return roots;
     }
 
-    /// <summary>Installs every mod found in a folder or .zip. Returns the folder names added.</summary>
+    /// <summary>Installs every mod found in a folder or archive: addon folders into AddOn\, and
+    /// script mods (user_script_N.lvl, custom_gc_N.lvl) into data\_lvl_pc. A script mod file can
+    /// also be added on its own. Returns the names added.</summary>
     public IReadOnlyList<string> Install(string path)
     {
         string? extracted = null;
@@ -50,25 +56,33 @@ public sealed class ModManager
             string searchIn = path;
             if (File.Exists(path))
             {
+                if (ScriptMods.IsScriptMod(Path.GetFileName(path)))
+                    return new ScriptMods(_layout).Install(new[] { path });
                 if (!Archives.IsArchive(path))
-                    throw new InvalidDataException("Only folders and .zip, .7z or .rar files can be added. Run installers yourself, or extract them first.");
+                    throw new InvalidDataException("Only folders, .zip, .7z or .rar files and script mods (user_script_N.lvl, custom_gc_N.lvl) can be added. Run installers yourself, or extract them first.");
                 extracted = Path.Combine(_layout.Temp, "mod-" + Guid.NewGuid().ToString("N"));
                 Archives.Extract(path, extracted);
                 searchIn = extracted;
             }
 
-            var roots = FindModRoots(searchIn);
-            if (roots.Count == 0)
-                throw new InvalidDataException("No mod found there. A mod folder has an addme.script file in it.");
+            var found = FindModRoots(searchIn);
+            var roots = found.Where(r => !ScriptMods.IsPatchAddOn(Path.GetFileName(r))).ToList();
+            var scripts = ScriptMods.FindIn(searchIn, found);
+            if (roots.Count == 0 && scripts.Count == 0)
+                throw new InvalidDataException(found.Count > 0
+                    ? "That's the unofficial 1.3 patch. OpenSWBF2 has 1.3-style mod support built in, so it isn't needed."
+                    : "No mod found there. A mod folder has an addme.script file in it.");
 
-            var added = new List<string>();
-            foreach (string root in roots)
-            {
-                string name = root == extracted ? ArchiveName(path) : Path.GetFileName(root);
+            var names = roots.Select(r => r == extracted ? ArchiveName(path) : Path.GetFileName(r)).ToList();
+            foreach (string name in names)
                 if (Directory.Exists(Path.Combine(_layout.AddOn, name)) || Directory.Exists(Path.Combine(_layout.AddOnDisabled, name)))
                     throw new IOException($"A mod named {name} is already installed. Remove it first to replace it.");
-                CopyDirectory(root, Path.Combine(_layout.AddOn, name));
-                added.Add(name);
+
+            var added = new List<string>(new ScriptMods(_layout).Install(scripts));
+            for (int i = 0; i < roots.Count; i++)
+            {
+                CopyDirectory(roots[i], Path.Combine(_layout.AddOn, names[i]));
+                added.Add(names[i]);
             }
             return added;
         }
@@ -90,6 +104,8 @@ public sealed class ModManager
     public ModInfo SetEnabled(ModInfo mod, bool enabled)
     {
         if (mod.Enabled == enabled) return mod;
+        if (enabled && mod.IsPatch)
+            throw new IOException("The unofficial 1.3 patch stays off: OpenSWBF2 has 1.3-style mod support built in.");
         string to = Path.Combine(enabled ? _layout.AddOn : _layout.AddOnDisabled, mod.Name);
         if (Directory.Exists(to)) throw new IOException($"{to} already exists.");
         Directory.CreateDirectory(Path.GetDirectoryName(to)!);

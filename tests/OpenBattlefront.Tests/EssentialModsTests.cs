@@ -6,7 +6,7 @@ namespace OpenBattlefront.Tests;
 public class EssentialModsTests
 {
     [Fact]
-    public void Only_the_Xbox_DLC_is_offered_until_built_in_13_support()
+    public void Only_the_Xbox_DLC_is_offered_while_the_pack_needs_its_installer()
     {
         Assert.Equal(new[] { "xbox-dlc" }, EssentialMods.All.Where(m => m.Available).Select(m => m.Id));
         Assert.All(EssentialMods.All.Where(m => !m.Available), m => Assert.NotNull(m.Note));

@@ -61,8 +61,17 @@ public static class Importer
         {
             if (name.Equals("vidmode.ini", StringComparison.OrdinalIgnoreCase)) return false;
             if (StockLvls.Names.Any(n => name.Equals(n + ".lvl", StringComparison.OrdinalIgnoreCase))) return false;
+            if (ScriptMods.IsPatchFile(name)) return false; // OpenSWBF2 has 1.3-style support built in
         }
         return true;
+    }
+
+    /// <param name="relative">A path relative to GameData\addon, such as BF1\addme.script.</param>
+    public static bool ShouldCopyAddOnFile(string relative)
+    {
+        relative = relative.Replace('/', '\\');
+        int slash = relative.IndexOf('\\');
+        return !ScriptMods.IsPatchAddOn(slash < 0 ? relative : relative[..slash]);
     }
 
     public static ImportPreview Preview(string gameData)
@@ -70,8 +79,8 @@ public static class Importer
         string data = Path.Combine(gameData, "data");
         long dataBytes = Files(data).Where(f => ShouldCopyDataFile(Path.GetRelativePath(data, f.FullName))).Sum(f => f.Length);
         string addon = Path.Combine(gameData, "addon");
-        int mods = Directory.Exists(addon) ? ModManager.FindModRoots(addon).Count : 0;
-        long modBytes = Files(addon).Sum(f => f.Length);
+        int mods = Directory.Exists(addon) ? ModManager.FindModRoots(addon).Count(r => ShouldCopyAddOnFile(Path.GetRelativePath(addon, r))) : 0;
+        long modBytes = Files(addon).Where(f => ShouldCopyAddOnFile(Path.GetRelativePath(addon, f.FullName))).Sum(f => f.Length);
         return new ImportPreview(dataBytes, mods, modBytes);
     }
 
@@ -86,7 +95,7 @@ public static class Importer
                 items.Add(Item(new FileInfo(source), Path.Combine(layout.StockLvlDir, name + ".lvl"), $"stock {name}.lvl", overwrite: true));
         }
         if (options.Mods)
-            AddTree(items, Path.Combine(gameData, "addon"), layout.AddOn, "AddOn", _ => true, overwrite: true);
+            AddTree(items, Path.Combine(gameData, "addon"), layout.AddOn, "AddOn", ShouldCopyAddOnFile, overwrite: true);
         return new ImportPlan(items);
     }
 

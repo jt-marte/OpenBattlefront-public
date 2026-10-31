@@ -132,7 +132,30 @@ public class ImporterTests
     [InlineData(@"_lvl_pc\vidmode.ini", false)]
     [InlineData(@"_lvl_pc\side\shell.lvl", true)]
     [InlineData("_lvl_pc/common.lvl", false)]
+    [InlineData(@"_lvl_pc\user_script_9.lvl", true)]
+    [InlineData(@"_lvl_pc\custom_gc_1.lvl", true)]
+    [InlineData(@"_lvl_pc\user_script_10.lvl", false)]
+    [InlineData(@"_lvl_pc\custom_gc_10.lvl", false)]
+    [InlineData(@"_lvl_pc\v1.3patch_strings.lvl", false)]
     public void Copy_filter(string relative, bool copy) => Assert.Equal(copy, Importer.ShouldCopyDataFile(relative));
+
+    [Fact]
+    public void The_13_patch_is_never_imported()
+    {
+        using var temp = new TempDir();
+        var (gameData, _) = temp.FakeGame();
+        temp.File("Game Root\\GameData\\addon\\AAA-v1.3patch\\addme.script");
+        temp.File("Game Root\\GameData\\addon\\AAA-v1.3patch\\data\\_lvl_pc\\patch.lvl");
+        temp.File("Game Root\\GameData\\addon\\BF1\\addme.script");
+        temp.File("Game Root\\GameData\\data\\_lvl_pc\\user_script_10.lvl");
+        temp.File("Game Root\\GameData\\data\\_lvl_pc\\user_script_9.lvl");
+
+        var plan = Importer.Plan(gameData, new InstallLayout(temp.Sub("L")), new ImportOptions());
+        Assert.DoesNotContain(plan.Items, i => i.Display.Contains("AAA-v1.3patch") || i.Display.EndsWith("user_script_10.lvl"));
+        Assert.Contains(plan.Items, i => i.Display == Path.Combine("AddOn", "BF1", "addme.script"));
+        Assert.Contains(plan.Items, i => i.Display.EndsWith("user_script_9.lvl"));
+        Assert.Equal(1, Importer.Preview(gameData).ModCount);
+    }
 
     [Fact]
     public async Task Copies_data_stock_lvls_and_mods_but_never_profiles_then_resumes()

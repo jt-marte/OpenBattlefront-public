@@ -24,9 +24,9 @@ public static class EssentialMods
             "https://www.moddb.com/mods/xbox-dlc-content-for-pc/downloads/xbox-dlc-and-title-update-content-for-pc",
             new[] { "DLC_XBOX", "UPDATE_XBOX" },
             Available: true),
-        // Needs the 1.3-style mod support built into OpenSWBF2 first. (The Remaster is not
-        // offered: it replaces OpenSWBF2's own menus, and its AI heroes and sound fixes are
-        // coming to OpenSWBF2 as built-in options.)
+        // OpenSWBF2 0.2.0 runs it (1.3-style mod support is built in), but it ships as an .exe
+        // installer, which the launcher doesn't unpack yet. (The Remaster is not offered: it
+        // replaces OpenSWBF2's own menus, and its AI heroes and award options are built in.)
         new CatalogMod(
             "conversion-pack",
             "Battlefront Conversion Pack",
@@ -35,7 +35,7 @@ public static class EssentialMods
             "https://www.moddb.com/addons/battlefront-conversion-pack-20",
             new[] { "BF1" },
             Available: false,
-            Note: "Coming with built-in 1.3-style mod support"),
+            Note: "It comes as an installer the launcher can't unpack yet. Install it into your own game, then drop its BF1 folder here."),
     };
 
     /// <summary>Installed means every folder it brings is in AddOn\ (or switched off in

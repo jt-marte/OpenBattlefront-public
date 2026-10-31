@@ -11,14 +11,14 @@
 
         <StackPanel>
             <TextBlock Text="Mods" Style="{StaticResource H2}" />
-            <TextBlock Text="Drop a mod folder, .zip, .7z or .rar anywhere here. Switch one off to keep it without loading it."
+            <TextBlock Text="Drop a mod folder, .zip, .7z, .rar or script mod anywhere here. Switch one off to keep it without loading it."
                        Style="{StaticResource Body}" Margin="0,4,0,0" />
         </StackPanel>
 
         <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-4,0,0"
                     Visibility="{Binding CanManage, Converter={StaticResource Vis}}">
             <Button Style="{StaticResource GhostButton}" Content="Add folder" Command="{Binding AddFolderCommand}" Height="32" Padding="12,0" />
-            <Button Style="{StaticResource GhostButton}" Content="Add archive" Command="{Binding AddZipCommand}" Height="32" Padding="12,0" Margin="6,0,0,0" />
+            <Button Style="{StaticResource GhostButton}" Content="Add file" Command="{Binding AddZipCommand}" Height="32" Padding="12,0" Margin="6,0,0,0" />
             <Button Style="{StaticResource IconButton}" Content="&#xE838;" Command="{Binding OpenFolderCommand}" ToolTip="Open the AddOn folder" Margin="4,0,0,0" />
         </StackPanel>
 
@@ -59,7 +59,7 @@
                                             </StackPanel>
                                             <Border CornerRadius="11" Padding="10,3" Background="{StaticResource SurfaceHi}" BorderBrush="{StaticResource Line}" BorderThickness="1"
                                                     Visibility="{Binding IsComing, Converter={StaticResource Vis}}" ToolTip="{Binding Note}">
-                                                <TextBlock Text="After 1.3 support" FontSize="11.5" Foreground="{StaticResource Faint}" />
+                                                <TextBlock Text="Coming later" FontSize="11.5" Foreground="{StaticResource Faint}" />
                                             </Border>
                                         </StackPanel>
                                     </Grid>
@@ -81,7 +81,7 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Enabled}" VerticalAlignment="Center" ToolTip="Load this mod" />
+                                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Enabled}" IsEnabled="{Binding CanToggle}" VerticalAlignment="Center" ToolTip="Load this mod" />
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Name}" Style="{StaticResource H3}" FontSize="14" />
                                             <TextBlock Text="{Binding State}" FontSize="12" Foreground="{StaticResource Faint}" Margin="10,1,0,0" VerticalAlignment="Center" />
@@ -100,6 +100,36 @@
                         <TextBlock Text="No mods yet. Drop a mod folder or archive here; a mod folder has an addme.script file in it."
                                    FontSize="12.5" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
                     </Border>
+
+                    <!-- Script mods: user_script_N.lvl and custom_gc_N.lvl in data\_lvl_pc -->
+                    <StackPanel Visibility="{Binding HasScriptItems, Converter={StaticResource Vis}}">
+                        <TextBlock Text="SCRIPT MODS" Style="{StaticResource Caption}" Margin="2,14,0,8" />
+                        <ItemsControl ItemsSource="{Binding ScriptItems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10"
+                                            Padding="16,0,8,0" Height="54" Margin="0,0,0,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Enabled}" VerticalAlignment="Center" ToolTip="Load this script" />
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" Style="{StaticResource H3}" FontSize="14" />
+                                                <TextBlock Text="{Binding State}" FontSize="12" Foreground="{StaticResource Faint}" Margin="10,1,0,0" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Style="{StaticResource IconButton}" Content="&#xE838;" Command="{Binding OpenCommand}" ToolTip="Open folder" />
+                                                <Button Style="{StaticResource IconButton}" Content="&#xE74D;" Command="{Binding RemoveCommand}" ToolTip="Remove" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </StackPanel>
             </ScrollViewer>
 
@@ -116,6 +146,6 @@
         </Grid>
 
         <TextBlock Grid.Row="2" Style="{StaticResource Caption}" FontWeight="Normal" Margin="0,12,0,0"
-                   Text="Mods that need the unofficial 1.3 patch don't work fully yet. Built-in support for them is next; no patch needed." />
+                   Text="{Binding PatchNote}" TextWrapping="Wrap" />
     </Grid>
 </UserControl>

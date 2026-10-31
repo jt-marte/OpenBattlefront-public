@@ -176,9 +176,25 @@ public sealed class MainViewModel : ObservableObject
 
     public async Task StartAsync()
     {
+        DisablePatch();
         Play.Refresh();
         if (Setup.IsReady && Setup.State.CheckUpdatesOnStart) await Play.CheckForUpdateAsync(silent: true);
         else if (Setup.State.ImportComplete && !Setup.IsReady) await Play.LoadLatestAsync();
+    }
+
+    /// <summary>An older import brought the unofficial 1.3 patch along; switch it off once.</summary>
+    private void DisablePatch()
+    {
+        if (!Setup.State.ImportComplete) return;
+        try
+        {
+            if (ScriptMods.DisablePatch(Setup.Layout).Count > 0)
+                ShowNotice("Switched off the unofficial 1.3 patch: OpenSWBF2 has 1.3-style mod support built in, so mods made for it don't need it.");
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            ShowError(e);
+        }
     }
 }
 
