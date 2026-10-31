@@ -65,6 +65,19 @@ public class ServerModsTests
             GameLauncher.BuildArguments(state, new JoinTarget(new ServerAddress("box", 4000), "has space")));
     }
 
+    [Theory]
+    [InlineData(null, new string[0], false, NameNeed.Ask)]          // first run, no data: ask
+    [InlineData(null, new[] { "Pat" }, false, NameNeed.TakeProfile)] // the game has a profile: take it
+    [InlineData(null, new string[0], true, NameNeed.Ask)]
+    [InlineData(null, new[] { "Pat" }, true, NameNeed.TakeProfile)]
+    [InlineData("", new[] { "Pat" }, false, NameNeed.Keep)]         // Play: empty means pick in the game
+    [InlineData("", new[] { "Pat" }, true, NameNeed.Ask)]           // Join: a server needs a real name
+    [InlineData("[NULL]", new string[0], true, NameNeed.Ask)]
+    [InlineData("Jt", new string[0], true, NameNeed.Keep)]          // an older short profile still signs in
+    [InlineData("Rex", new string[0], false, NameNeed.Keep)]
+    public void Knows_when_to_ask_for_a_player_name(string? saved, string[] profiles, bool forJoin, NameNeed expected) =>
+        Assert.Equal(expected, PlayerProfiles.NameNeeded(saved, profiles, forJoin));
+
     [Fact]
     public void Recent_servers_keep_the_newest_eight()
     {

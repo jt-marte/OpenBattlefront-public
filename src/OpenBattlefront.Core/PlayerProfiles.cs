@@ -46,4 +46,17 @@ public static class PlayerProfiles
     /// name, else "Player".</summary>
     public static string DefaultName(InstallLayout layout, string? userName) =>
         List(layout).FirstOrDefault() ?? Clean(userName) ?? "Player";
+
+    /// <summary>What starting the game needs before it goes: the saved name as it is, the newest
+    /// profile taken without asking, or a question. No name saved yet takes a profile if there is
+    /// one. Joining a server needs a real name, so an empty one (the game's own profile screen) or a
+    /// broken one is asked for; plain Play keeps empty as the player's choice.</summary>
+    public static NameNeed NameNeeded(string? saved, IReadOnlyList<string> profiles, bool forJoin)
+    {
+        if (saved == null) return profiles.Count > 0 ? NameNeed.TakeProfile : NameNeed.Ask;
+        if (forJoin && !IsValid(saved)) return NameNeed.Ask;
+        return NameNeed.Keep;
+    }
 }
+
+public enum NameNeed { Keep, TakeProfile, Ask }

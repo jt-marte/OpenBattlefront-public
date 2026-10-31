@@ -300,7 +300,11 @@ public sealed class PlayViewModel : ObservableObject
         else if (Setup.IsReady) _main.ShowNotice((addedContent ? GameContent.AddedNotice + " " : "") + "All set. Have fun out there.");
         else if (addedContent) _main.ShowNotice(GameContent.AddedNotice);
         if (Stage == PlayStage.NeedsBuild) await LoadLatestAsync();
-        if (error == null) await _main.OfferEssentialsAsync();
+        if (error == null)
+        {
+            await AskNameAfterSetupAsync();
+            await _main.OfferEssentialsAsync();
+        }
     }
 
     public async Task LoadLatestAsync()
@@ -344,28 +348,30 @@ public sealed class PlayViewModel : ObservableObject
         if (release == null) return;
         var error = await Activity.RunAsync($"Downloading OpenSWBF2 {release.Version}",
             (progress, ct) => Setup.DownloadAndInstallAsync(release, progress, ct), cancellable: true);
-        AfterInstall(error);
+        await AfterInstallAsync(error);
     }
 
     public async Task InstallFromFileAsync(string zip)
     {
         var error = await Activity.RunAsync("Installing", (progress, ct) => Setup.InstallBuildAsync(zip, progress, ct));
-        AfterInstall(error);
+        await AfterInstallAsync(error);
     }
 
     public async Task RollBackAsync()
     {
         var error = await Activity.RunAsync("Rolling back", (progress, ct) => Setup.RollBackAsync(progress, ct));
-        AfterInstall(error);
+        await AfterInstallAsync(error);
     }
 
-    private void AfterInstall(Exception? error)
+    private async Task AfterInstallAsync(Exception? error)
     {
         Refresh(keepReview: false);
         _main.Settings.Refresh();
         if (error != null) _main.ShowError(error);
         else _main.ShowNotice(Setup.IsReady ? $"OpenSWBF2 {Setup.State.InstalledVersion} is installed." : $"OpenSWBF2 {Setup.State.InstalledVersion} is ready; import your game to play.");
-        if (error == null) _ = _main.OfferEssentialsAsync();
+        if (error != null) return;
+        await AskNameAfterSetupAsync();
+        await _main.OfferEssentialsAsync();
     }
 
     public void ChoosePackage()
@@ -374,31 +380,56 @@ public sealed class PlayViewModel : ObservableObject
         if (dialog.ShowDialog() == true) _ = InstallFromFileAsync(dialog.FileName);
     }
 
-    /// <summary>Before the first start: the player's newest profile, or a name they choose for the game
-    /// to make one with. False when they cancel.</summary>
-    public async Task<bool> EnsurePlayerNameAsync()
+    /// <summary>The player name the game starts with (-name): the player's newest profile, or a name
+    /// they choose for the game to make one with (PlayerProfiles.NameNeeded). Joining a server also
+    /// asks when the saved name is empty. False when they cancel, which saves nothing.</summary>
+    /// <param name="ok">The question's button: "Play", or "Save" when first setup asks.</param>
+    public async Task<bool> EnsurePlayerNameAsync(bool forJoin = false, string ok = "Play")
     {
-        if (Setup.State.PlayerName != null) return true;
-        string? name = PlayerProfiles.List(Setup.Layout).FirstOrDefault();
-        string suggestion = PlayerProfiles.DefaultName(Setup.Layout, Environment.UserName);
-        while (name == null)
+        var profiles = PlayerProfiles.List(Setup.Layout);
+        string? name;
+        switch (PlayerProfiles.NameNeeded(Setup.State.PlayerName, profiles, forJoin))
         {
-            string? answer = await _main.AskAsync("Choose your player name",
-                $"Your profile in the game, and your name online. {PlayerProfiles.MinLength} to {PlayerProfiles.MaxLength} " +
-                "letters or numbers; Settings can change it later.", suggestion, "Play");
-            if (answer == null) return false;
-            answer = answer.Trim();
-            if (PlayerProfiles.CanCreate(answer)) name = answer;
-            else
-            {
-                suggestion = answer;
-                _main.ShowNotice($"A player name is {PlayerProfiles.MinLength} to {PlayerProfiles.MaxLength} letters or numbers.", error: true);
-            }
+            case NameNeed.Keep:
+                return true;
+            case NameNeed.TakeProfile:
+                name = profiles[0];
+                break;
+            default:
+                name = await AskPlayerNameAsync(profiles.FirstOrDefault() ?? PlayerProfiles.DefaultName(Setup.Layout, Environment.UserName),
+                    forJoin && Setup.State.PlayerName != null, ok);
+                if (name == null) return false;
+                break;
         }
         Setup.State.PlayerName = name;
         Setup.Save();
         _main.Settings.Refresh();
         return true;
+    }
+
+    private async Task<string?> AskPlayerNameAsync(string suggestion, bool forServer, string ok)
+    {
+        string text = forServer
+            ? "Servers show players by name, so joining needs one; the game makes its profile. " +
+              $"{PlayerProfiles.MinLength} to {PlayerProfiles.MaxLength} letters or numbers; Settings can change it later."
+            : $"Your profile in the game, and your name online. {PlayerProfiles.MinLength} to {PlayerProfiles.MaxLength} " +
+              "letters or numbers; Settings can change it later.";
+        while (true)
+        {
+            string? answer = await _main.AskAsync(forServer ? "Choose a name to play online" : "Choose your player name", text, suggestion, ok);
+            if (answer == null) return null;
+            answer = answer.Trim();
+            if (PlayerProfiles.CanUse(Setup.Layout, answer)) return answer;
+            suggestion = answer;
+            _main.ShowNotice($"A player name is {PlayerProfiles.MinLength} to {PlayerProfiles.MaxLength} letters or numbers.", error: true);
+        }
+    }
+
+    /// <summary>When first setup finishes, the name the game will use, once: the newest profile if
+    /// there is one, else the player is asked. Cancelling leaves it for Play or Join to ask.</summary>
+    private async Task AskNameAfterSetupAsync()
+    {
+        if (Setup.IsReady && Setup.State.PlayerName == null) await EnsurePlayerNameAsync(ok: "Save");
     }
 
     private async void Launch() => await LaunchAsync();
@@ -409,7 +440,7 @@ public sealed class PlayViewModel : ObservableObject
     {
         try
         {
-            if (!await EnsurePlayerNameAsync()) return false;
+            if (!await EnsurePlayerNameAsync(forJoin: join != null)) return false;
             var game = GameLauncher.Start(Setup.Layout, Setup.State, join);
             _game = game;
             IsGameRunning = true;

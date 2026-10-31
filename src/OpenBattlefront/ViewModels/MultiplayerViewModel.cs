@@ -141,8 +141,9 @@ public sealed class MultiplayerViewModel : ObservableObject
             _main.ShowNotice("That isn't a server address. Type it as address:port, such as 203.0.113.5:3658 or myserver.example.com.", error: true);
             return;
         }
-        if (!await _main.Play.EnsurePlayerNameAsync()) return;
-        _myName = PlayerProfiles.IsValid(State.PlayerName) ? State.PlayerName! : PlayerProfiles.DefaultName(_main.Setup.Layout, Environment.UserName);
+        // A server shows players by name: the lobby's and the game's (-name) are the same one
+        if (!await _main.Play.EnsurePlayerNameAsync(forJoin: true)) return;
+        _myName = State.PlayerName!;
         string? password = string.IsNullOrWhiteSpace(Password)
             ? State.RecentServers.FirstOrDefault(s => string.Equals(s.Address, server.ToString(), StringComparison.OrdinalIgnoreCase))?.JoinPassword
             : Password.Trim();
