@@ -14,6 +14,21 @@ public class ServerHostTests
     }
 
     [Fact]
+    public void Loopback_hosting_answers_only_this_pc_and_sharing_is_on_by_default()
+    {
+        using var temp = new TempDir();
+        var (layout, profile) = Setup(temp);
+        Assert.DoesNotContain("-netloopback", ServerHost.BuildArguments(profile, layout, out _));
+        Assert.EndsWith(" -netloopback", ServerHost.BuildArguments(profile, layout, out _, loopback: true));
+
+        Assert.True(profile.ShareMods);
+        Assert.Equal(50, profile.ModRate);
+        profile.ModRate = -5;
+        profile.Normalize();
+        Assert.Equal(0, profile.ModRate);
+    }
+
+    [Fact]
     public void Starts_from_the_game_folder_with_its_settings_written()
     {
         using var temp = new TempDir();

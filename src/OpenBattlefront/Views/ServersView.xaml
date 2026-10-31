@@ -113,7 +113,7 @@
             <Border Grid.Row="2" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="40,12,40,16">
                 <Grid>
                     <TextBlock Style="{StaticResource Caption}" FontWeight="Normal" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,200,0"
-                               Text="Saved as you go. Players join with Direct Connect to this PC's address and the port." />
+                               Text="Saved as you go. Players join from the launcher's Multiplayer page, or the game's Direct Connect, with this PC's address and the port." />
                     <Button Style="{StaticResource PrimaryButton}" Command="{Binding ContinueCommand}" HorizontalAlignment="Right">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Continue to playlist" VerticalAlignment="Center" />

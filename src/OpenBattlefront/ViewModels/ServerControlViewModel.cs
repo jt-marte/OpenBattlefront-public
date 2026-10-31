@@ -6,6 +6,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 using OpenBattlefront.Core;
+using OpenBattlefront.Core.Hosting;
 using OpenBattlefront.Core.Rcon;
 
 namespace OpenBattlefront.ViewModels;
@@ -36,6 +37,7 @@ public sealed class ServerControlViewModel : ObservableObject
     private readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromSeconds(2) };
     private readonly HashSet<string> _expanded = new(StringComparer.OrdinalIgnoreCase);
     private IServerAdmin? _admin;
+    private ModHostService? _mods;
     private MapCatalog? _catalog;
     private CatalogStatus _catalogStatus;
     private string _catalogMessage = "";
@@ -84,7 +86,11 @@ public sealed class ServerControlViewModel : ObservableObject
 
         LaunchCommand = new RelayCommand(() => _ = LaunchAsync(), () => CanLaunch);
         StopCommand = new RelayCommand(() => _ = StopAsync(), () => IsRunning && Status != ServerStatus.Stopping);
-        StartMatchCommand = new RelayCommand(() => Run(a => a.StartAsync(), "Match started."), () => CanControl && Status == ServerStatus.Lobby);
+        StartMatchCommand = new RelayCommand(() =>
+        {
+            if (_mods != null) _ = StartThroughLobbyAsync();
+            else Run(a => a.StartAsync(), "Match started.");
+        }, () => CanControl && Status == ServerStatus.Lobby);
         EndMatchCommand = new RelayCommand(() => Run(a => a.EndMatchAsync(), "Match ended; the next map loads."), () => CanControl && Status is ServerStatus.Playing or ServerStatus.Warmup);
         NextMapCommand = new RelayCommand(() => Run(a => a.NextMapAsync(_state?.Next ?? ""), "Going to the next map."), () => CanControl && Status is ServerStatus.Lobby or ServerStatus.Playing or ServerStatus.Warmup or ServerStatus.Results);
         RestartMapCommand = new RelayCommand(() => Run(a => a.RestartAsync(), "Restarting the map."), () => CanControl && Status is ServerStatus.Playing or ServerStatus.Warmup);
@@ -108,6 +114,14 @@ public sealed class ServerControlViewModel : ObservableObject
 
     /// <summary>Development and screenshots: a simulated server and the sample map list, no game.</summary>
     public bool UseFakeServer { get; set; }
+
+    /// <summary>The --loopback development switch: the server and its mod service answer only this
+    /// PC, so tests raise no firewall prompt.</summary>
+    public bool Loopback
+    {
+        get => _host.Loopback;
+        set => _host.Loopback = value;
+    }
 
     public ServerStatus Status
     {
@@ -543,7 +557,7 @@ public sealed class ServerControlViewModel : ObservableObject
 
     public ObservableCollection<PlayerRowViewModel> Players { get; } = new();
     public string PlayersTab => Players.Count == 0 ? "Players" : $"Players ({Players.Count})";
-    public bool NoPlayers => Players.Count == 0;
+    public bool NoPlayers => Players.Count == 0 && LauncherWaiting.Count == 0;
 
     private void SetPlayers(IReadOnlyList<PlayerInfo> players)
     {
@@ -716,6 +730,113 @@ public sealed class ServerControlViewModel : ObservableObject
             return;
         }
         Attach(client);
+        StartSharing(client);
+        await PollAsync();
+    }
+
+    /// <summary>Shares this PC's mods with joining launchers and runs their lobby (the same service
+    /// as the Docker server's), on TCP at the game's port number. Windows asks the first time
+    /// whether OpenBattlefront may accept players there.</summary>
+    private void StartSharing(IServerAdmin admin)
+    {
+        if (!Profile.ShareMods || UseFakeServer || _mods != null) return;
+        var layout = _main.Setup.Layout;
+        var service = new ModHostService(new ModHostOptions
+        {
+            AddOn = layout.AddOn,
+            Hashes = FileHashCache.For(layout),
+            ServerName = Profile.Name,
+            Version = _main.Setup.State.InstalledVersion ?? "",
+            JoinPassword = Profile.JoinPassword,
+            AdminPassword = Profile.AdminPassword,
+            RateBytesPerSecond = Profile.ModRate * 125_000.0,
+            Bind = Loopback ? IPAddress.Loopback : IPAddress.Any,
+            Port = Profile.Port,
+        }, new AdminGameProbe(admin));
+        try
+        {
+            service.Start();
+            _mods = service;
+            AddMessage(ChatKind.Admin, $"Sharing your mods and running the launcher lobby on TCP {Profile.Port}. Players join from the launcher's Multiplayer page.");
+        }
+        catch (System.Net.Sockets.SocketException e)
+        {
+            _ = service.DisposeAsync().AsTask();
+            _main.ShowNotice($"TCP {Profile.Port} is taken ({e.Message}), so this server doesn't share mods or run the launcher lobby.", error: true);
+        }
+        UpdateSharing();
+    }
+
+    private async Task StopSharingAsync()
+    {
+        var mods = _mods;
+        _mods = null;
+        UpdateSharing();
+        if (mods != null) await mods.DisposeAsync();
+    }
+
+    private string _sharingText = "";
+    private IReadOnlyList<LobbyRow> _launcherWaiting = Array.Empty<LobbyRow>();
+
+    /// <summary>"Sharing 2 mods on TCP 3658 · 3 waiting in launchers", or empty.</summary>
+    public string SharingText { get => _sharingText; private set => Set(ref _sharingText, value); }
+    public bool HasSharingText => SharingText.Length > 0;
+
+    /// <summary>Players waiting in their launchers' lobby, their game still closed.</summary>
+    public IReadOnlyList<LobbyRow> LauncherWaiting { get => _launcherWaiting; private set => Set(ref _launcherWaiting, value); }
+    public bool HasLauncherWaiting => LauncherWaiting.Count > 0;
+
+    private void UpdateSharing()
+    {
+        var mods = _mods;
+        if (mods == null)
+        {
+            SharingText = "";
+            LauncherWaiting = Array.Empty<LobbyRow>();
+        }
+        else
+        {
+            var lobby = mods.Lobby.List();
+            bool loading = (string?)mods.Watch.Describe()["start"] == "loading";
+            SharingText = $"Sharing {Plural(mods.Library.Folders.Count, "mod")} on TCP {mods.Port}  ·  {lobby.Count} waiting in launchers" +
+                (loading ? "  ·  opening their games" : "");
+            LauncherWaiting = lobby.Select(p => new LobbyRow(p.Name, p.IsDownloading ? $"Downloading {p.Progress}%" : "Waiting in the launcher", false, false)).ToList();
+        }
+        Raise(nameof(HasSharingText));
+        Raise(nameof(HasLauncherWaiting));
+        Raise(nameof(NoPlayers));
+    }
+
+    /// <summary>Start match with the launcher lobby: every waiting player's game opens first, and
+    /// the match begins once they're in (or after 60 s); anyone still downloading joins later.</summary>
+    private async Task StartThroughLobbyAsync()
+    {
+        var mods = _mods;
+        if (mods == null || _busy) return;
+        var lobby = mods.Lobby.List();
+        var downloading = lobby.Where(p => p.IsDownloading).Select(p => p.Name).ToList();
+        int waiting = lobby.Count - downloading.Count;
+        if (downloading.Count > 0 && !await _main.ConfirmAsync("Start the match?",
+                $"Still downloading: {string.Join(", ", downloading)}. They join when their download is done.", "Start match"))
+            return;
+        _busy = true;
+        CommandManager.InvalidateRequerySuggested();
+        try
+        {
+            await mods.Watch.StartAsync(CancellationToken.None);
+            AddMessage(ChatKind.Admin, waiting > 0
+                ? $"Starting: the games of {Plural(waiting, "player")} waiting in launchers are opening; the match begins once they're in."
+                : "Match started.");
+        }
+        catch (ModHostRefused e)
+        {
+            _main.ShowNotice(char.ToUpperInvariant(e.Message[0]) + e.Message[1..] + ".", error: true);
+        }
+        finally
+        {
+            _busy = false;
+            CommandManager.InvalidateRequerySuggested();
+        }
         await PollAsync();
     }
 
@@ -774,6 +895,7 @@ public sealed class ServerControlViewModel : ObservableObject
         {
             await ConnectAsync(client, Profile.AdminPassword, CancellationToken.None);
             Attach(client);
+            StartSharing(client);
             await PollAsync();
         }
         catch (Exception e) when (e is TimeoutException or RconException or InvalidOperationException or System.Net.Sockets.SocketException)
@@ -807,6 +929,7 @@ public sealed class ServerControlViewModel : ObservableObject
     public async Task DetachAsync()
     {
         _poll.Stop();
+        await StopSharingAsync();
         if (_admin != null) await _admin.DisposeAsync();
         _admin = null;
     }
@@ -820,6 +943,7 @@ public sealed class ServerControlViewModel : ObservableObject
         bool expected = _stopRequested;
         _state = null;
         Status = ServerStatus.NotRunning;
+        await StopSharingAsync();
         if (admin != null) await admin.DisposeAsync();
         _host.Forget();
         _main.Setup.State.RunningServer = null;
@@ -846,6 +970,7 @@ public sealed class ServerControlViewModel : ObservableObject
         {
             ApplyState(await admin.StateAsync());
             if (_pollCount++ % 2 == 0 || Tab == ControlTab.Players) SetPlayers(await admin.PlayersAsync());
+            UpdateSharing();
         }
         catch (NotSupportedException e)
         {

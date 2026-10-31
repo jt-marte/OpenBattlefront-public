@@ -163,6 +163,7 @@ public sealed class ServerOptionsViewModel : ObservableObject
         {
             Profile.Port = Math.Clamp(value, 1024, 65534);
             Changed(nameof(Port));
+            Raise(nameof(ShareModsNote));
         }
     }
 
@@ -198,6 +199,32 @@ public sealed class ServerOptionsViewModel : ObservableObject
     }
 
     public string AdminPasswordText => ShowAdminPassword ? Profile.AdminPassword : new string('•', Profile.AdminPassword.Length);
+
+    /// <summary>Joining launchers get this PC's mods and wait in the launcher lobby (ModHostService).</summary>
+    public bool ShareMods
+    {
+        get => Profile.ShareMods;
+        set
+        {
+            Profile.ShareMods = value;
+            Changed(nameof(ShareMods));
+            Raise(nameof(ShareModsNote));
+        }
+    }
+
+    public int ModRate
+    {
+        get => Profile.ModRate;
+        set
+        {
+            Profile.ModRate = Math.Clamp(value, 0, 10000);
+            Changed(nameof(ModRate));
+        }
+    }
+
+    public string ShareModsNote => ShareMods
+        ? $"Players from the launcher's Multiplayer page get your mods and wait in its lobby. Windows asks once whether OpenBattlefront may accept them on TCP {Profile.Port}."
+        : "Players join with the mods they have, and wait in the game's own lobby.";
 
     // Battle
 

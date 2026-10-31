@@ -80,7 +80,9 @@ public sealed class ServerHost
         File.WriteAllText(RotationFile(_layout), "", Encoding.ASCII);
     }
 
-    public static string BuildArguments(ServerProfile profile, InstallLayout layout, out int mapsOnCommandLine)
+    /// <param name="loopback">Only this PC can join (-netloopback): for tests, so Windows doesn't
+    /// ask about the firewall.</param>
+    public static string BuildArguments(ServerProfile profile, InstallLayout layout, out int mapsOnCommandLine, bool loopback = false)
     {
         if (profile.Playlist.Count == 0) throw new InvalidOperationException("Add a map to the playlist first.");
         var maps = new StringBuilder();
@@ -111,8 +113,12 @@ public sealed class ServerHost
             "-logcmds", Quote(LogCommands),
             "-log", Quote(Path.Combine(layout.Logs, "server.log")),
         });
+        if (loopback) parts.Add("-netloopback");
         return string.Join(' ', parts);
     }
+
+    /// <summary>The --loopback development switch: the server and its mod service answer only this PC.</summary>
+    public bool Loopback { get; set; }
 
     private static string Quote(string value) => "\"" + value.Replace("\"", "") + "\"";
 
@@ -121,7 +127,7 @@ public sealed class ServerHost
         if (IsRunning) throw new InvalidOperationException("The server is already running.");
         if (!File.Exists(_layout.GameExe)) throw new FileNotFoundException("The game is not installed yet.", _layout.GameExe);
         profile.Normalize();
-        string arguments = BuildArguments(profile, _layout, out int maps);
+        string arguments = BuildArguments(profile, _layout, out int maps, Loopback);
         WriteConfig(profile);
         Directory.CreateDirectory(_layout.Logs);
         lock (_log) _log.Clear();

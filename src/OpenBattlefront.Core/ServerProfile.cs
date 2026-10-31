@@ -53,6 +53,13 @@ public sealed class ServerProfile
 
     public List<PlaylistEntry> Playlist { get; set; } = new();
 
+    /// <summary>The launcher shares this PC's mods with joining launchers and runs their lobby
+    /// (ModHostService), on TCP at the game's port number.</summary>
+    public bool ShareMods { get; set; } = true;
+
+    /// <summary>All mod downloads together, in Mbit/s; 0 = no cap.</summary>
+    public int ModRate { get; set; } = 50;
+
     [JsonIgnore]
     public string DifficultyName => Difficulty switch { 2 => "Medium", 4 => "Overhaul", _ => "Hard" };
 
@@ -88,6 +95,7 @@ public sealed class ServerProfile
         HuntTimeLimit = Math.Clamp(HuntTimeLimit, 0, 60);
         HuntScore = Math.Clamp(HuntScore, 50, 150);
         AssaultScore = Math.Clamp(AssaultScore, 150, 300);
+        ModRate = Math.Clamp(ModRate, 0, 10000);
         Playlist.RemoveAll(e => !PlaylistEntry.IsValidMission(e.Mission));
         foreach (var entry in Playlist) entry.Normalize();
     }

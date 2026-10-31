@@ -237,6 +237,9 @@
                     <TextBlock Text="{Binding StatusDetail}" FontSize="12.5" Foreground="{StaticResource Muted}" Margin="12,0,0,0"
                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding StatusDetail}" />
                 </DockPanel>
+                <TextBlock Text="{Binding SharingText}" FontSize="12" Foreground="{StaticResource Faint}" Margin="2,7,0,0" TextTrimming="CharacterEllipsis"
+                           Visibility="{Binding HasSharingText, Converter={StaticResource Vis}}"
+                           ToolTip="Joining launchers get these mods from this PC and wait in the launcher lobby until you start the match" />
                 <DockPanel Margin="0,10,0,0" LastChildFill="False">
                     <Button DockPanel.Dock="Left" Style="{StaticResource SmallPrimary}" Command="{Binding LaunchCommand}"
                             Visibility="{Binding ShowLaunch, Converter={StaticResource Vis}}">
@@ -587,6 +590,7 @@
                     <TextBlock Grid.Column="4" Text="PING" Style="{StaticResource Caption}" />
                 </Grid>
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                  <StackPanel>
                     <ItemsControl ItemsSource="{Binding Players}" Margin="0,0,6,0">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:PlayerRowViewModel}">
@@ -629,10 +633,28 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <!-- The launcher lobby: players whose game opens when the match starts -->
+                    <StackPanel Visibility="{Binding HasLauncherWaiting, Converter={StaticResource Vis}}" Margin="0,12,6,0">
+                        <TextBlock Text="WAITING IN LAUNCHERS" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                        <ItemsControl ItemsSource="{Binding LauncherWaiting}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,6">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding Detail}" FontSize="12.5" Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                  </StackPanel>
                 </ScrollViewer>
                 <TextBlock Grid.Row="1" Style="{StaticResource Body}" TextAlignment="Center" VerticalAlignment="Center" Margin="40,0,40,30"
                            Visibility="{Binding NoPlayers, Converter={StaticResource Vis}}"
-                           Text="No one has joined yet. Players use Direct Connect with this PC's address and the server's port." />
+                           Text="No one has joined yet. Players join from the launcher's Multiplayer page, or the game's Direct Connect, with this PC's address and the server's port." />
             </Grid>
         </Border>
 

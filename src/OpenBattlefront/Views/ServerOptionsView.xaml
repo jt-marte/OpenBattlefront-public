@@ -129,6 +129,24 @@
                             <Button Style="{StaticResource IconButton}" Content="&#xE72C;" Command="{Binding NewAdminPasswordCommand}" ToolTip="Make a new one" />
                         </StackPanel>
                     </Grid>
+                    <Rectangle Style="{StaticResource Divider}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                            <TextBlock Text="Share my mods and run the lobby" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="{Binding ShareModsNote}" Style="{StaticResource RowNote}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="Cap" Style="{StaticResource Unit}" Margin="0,0,8,0" />
+                            <TextBox Style="{StaticResource Number}" Width="56" Text="{Binding ModRate, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding ShareMods}"
+                                     ToolTip="All mod downloads together, in Mbit/s; 0 = no cap" />
+                            <TextBlock Text="Mbit/s" Style="{StaticResource Unit}" Margin="8,0,18,0" />
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding ShareMods}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
                 </StackPanel>
             </Border>
         </StackPanel>

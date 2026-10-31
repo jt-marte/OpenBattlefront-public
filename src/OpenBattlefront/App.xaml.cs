@@ -17,7 +17,8 @@ public partial class App : Application
     /// Arguments for development: --state &lt;launcher.json&gt; uses another state file (and so another
     /// install), --screenshot &lt;dir&gt; saves each page as a PNG and exits, --drop &lt;path&gt; drops a
     /// folder on the Play page first, --fake-server runs the Server manager against a simulated
-    /// server and the sample map list.
+    /// server and the sample map list, --loopback hosts a server only this PC can reach (-netloopback,
+    /// the mod service on 127.0.0.1), so tests raise no firewall prompt.
     /// </summary>
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -38,6 +39,7 @@ public partial class App : Application
         var setup = new GameSetup(LauncherState.Load(stateFile), stateFile, MainViewModel.LauncherVersion);
         Launcher = new MainViewModel(setup);
         if (e.Args.Any(a => a.Equals("--fake-server", StringComparison.OrdinalIgnoreCase))) Launcher.Servers.Control.UseFakeServer = true;
+        if (e.Args.Any(a => a.Equals("--loopback", StringComparison.OrdinalIgnoreCase))) Launcher.Servers.Control.Loopback = true;
         var window = new MainWindow { DataContext = Launcher };
         MainWindow = window;
         window.Show();
