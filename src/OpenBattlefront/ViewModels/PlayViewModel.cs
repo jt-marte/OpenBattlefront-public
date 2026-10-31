@@ -24,8 +24,9 @@ public sealed class PlayViewModel : ObservableObject
     private bool _isGameRunning;
     private Process? _game;
     private IReadOnlyList<Prerequisite> _missing = Array.Empty<Prerequisite>();
-    private string? _steamCopy;
-    private bool _steamSearched;
+    private IReadOnlyList<FoundCopy> _foundCopies = Array.Empty<FoundCopy>();
+    private bool _searched;
+    private bool _isSearching;
 
     public PlayViewModel(MainViewModel main)
     {
@@ -38,7 +39,8 @@ public sealed class PlayViewModel : ObservableObject
         UpdateCommand = new RelayCommand(() => _ = InstallLatestAsync(), () => Latest != null && !Activity.IsBusy && !IsGameRunning);
         ChoosePackageCommand = new RelayCommand(ChoosePackage, () => !Activity.IsBusy && !IsGameRunning);
         OpenUrlCommand = new RelayCommand(p => ShellOpen.Url((string)p!));
-        UseSteamCopyCommand = new RelayCommand(() => _ = HandleDropAsync(SteamCopy!), () => SteamCopy != null && !Activity.IsBusy);
+        UseCopyCommand = new RelayCommand(p => _ = HandleDropAsync(((FoundCopy)p!).GameData), p => p is FoundCopy && !Activity.IsBusy);
+        SearchDrivesCommand = new RelayCommand(() => _ = FindCopiesAsync(), () => !IsSearching && !Activity.IsBusy);
     }
 
     public ActivityViewModel Activity => _main.Activity;
@@ -52,19 +54,34 @@ public sealed class PlayViewModel : ObservableObject
     public ICommand UpdateCommand { get; }
     public ICommand ChoosePackageCommand { get; }
     public ICommand OpenUrlCommand { get; }
-    public ICommand UseSteamCopyCommand { get; }
+    public ICommand UseCopyCommand { get; }
+    public ICommand SearchDrivesCommand { get; }
 
-    /// <summary>GameData of an installed Steam copy, found through Steam's library list.</summary>
-    public string? SteamCopy
+    /// <summary>Copies of the game found on this PC (Steam libraries, GOG, retail, and the usual
+    /// folders on every drive), most likely first.</summary>
+    public IReadOnlyList<FoundCopy> FoundCopies
     {
-        get => _steamCopy;
+        get => _foundCopies;
         private set
         {
-            if (Set(ref _steamCopy, value)) Raise(nameof(HasSteamCopy));
+            if (Set(ref _foundCopies, value)) Raise(nameof(SearchStatus));
         }
     }
 
-    public bool HasSteamCopy => SteamCopy != null;
+    public bool IsSearching
+    {
+        get => _isSearching;
+        private set
+        {
+            if (Set(ref _isSearching, value)) Raise(nameof(SearchStatus));
+        }
+    }
+
+    public string SearchStatus =>
+        IsSearching ? "Looking for your game on this PC…" :
+        !_searched ? "" :
+        FoundCopies.Count == 0 ? "No copy found on your drives. Drop the folder above, or Browse." :
+        FoundCopies.Count == 1 ? "Found 1 copy on this PC" : $"Found {FoundCopies.Count} copies on this PC";
 
     public PlayStage Stage { get => _stage; private set => Set(ref _stage, value); }
 
@@ -137,10 +154,9 @@ public sealed class PlayViewModel : ObservableObject
         }
         MissingPrereqs = Prerequisites.Check().Where(p => !p.Present).ToList();
         if (_game == null) IsGameRunning = Setup.IsReady && GameLauncher.IsRunning(Setup.Layout, _main.Servers?.Control.ServerProcessId);
-        if (Stage == PlayStage.Welcome && !_steamSearched)
+        if (Stage == PlayStage.Welcome && !_searched && !IsSearching)
         {
-            _steamSearched = true;
-            _ = FindSteamCopyAsync();
+            _ = FindCopiesAsync();
         }
         Raise(nameof(CanResume));
         Raise(nameof(InstallHint));
@@ -149,12 +165,32 @@ public sealed class PlayViewModel : ObservableObject
         CommandManager.InvalidateRequerySuggested();
     }
 
-    private async Task FindSteamCopyAsync()
+    /// <summary>The registry's copies show at once; the drive search (a few seconds per drive)
+    /// adds its finds after.</summary>
+    private async Task FindCopiesAsync()
     {
-        try { SteamCopy = (await Task.Run(SteamLocator.FindGameData)).FirstOrDefault(); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        IsSearching = true;
         CommandManager.InvalidateRequerySuggested();
+        try
+        {
+            var finder = GameFinder.ForThisPc();
+            var registered = await Task.Run(() => finder.FindRegistered());
+            FoundCopies = Outside(registered);
+            var onDrives = await Task.Run(() => finder.ScanDrives());
+            FoundCopies = Outside(GameFinder.Merge(registered, onDrives));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
+        finally
+        {
+            _searched = true;
+            IsSearching = false;
+            CommandManager.InvalidateRequerySuggested();
+        }
     }
+
+    /// <summary>Leaves out OpenBattlefront's own copy of the game.</summary>
+    private IReadOnlyList<FoundCopy> Outside(IReadOnlyList<FoundCopy> copies) =>
+        copies.Where(c => !GameLocator.IsInside(c.GameData, Setup.Layout.Root)).ToList();
 
     public async Task HandleDropAsync(string path)
     {
@@ -166,6 +202,17 @@ public sealed class PlayViewModel : ObservableObject
             return;
         }
         string? gameData = GameLocator.FindGameData(path);
+        if (gameData == null && Directory.Exists(path))
+        {
+            if (GameFinder.HasGogInstaller(path))
+            {
+                ShowInvalid(StockLvls.GogNotYet);
+                return;
+            }
+            // A folder that holds the game somewhere below it: X:\Games, steamapps\common …
+            Stage = PlayStage.Checking;
+            gameData = await Task.Run(() => GameFinder.SearchBelow(path, 3, TimeSpan.FromSeconds(6)));
+        }
         if (gameData == null)
         {
             ShowInvalid("That doesn't look like Battlefront II. Drop the game's folder (the one with GameData inside), or GameData itself.");

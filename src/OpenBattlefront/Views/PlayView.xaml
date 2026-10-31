@@ -114,7 +114,7 @@
                         </Border>
                         <TextBlock Text="Drop your Battlefront II folder here" Style="{StaticResource H2}" FontSize="20" HorizontalAlignment="Center" Margin="0,18,0,0" />
                         <TextBlock Style="{StaticResource Body}" TextAlignment="Center" Margin="0,8,0,0"
-                                   Text="The Steam version, v1.1. OpenBattlefront copies what the game needs (about 10 GB) and never changes your copy." />
+                                   Text="Star Wars Battlefront II (2005), the Steam version v1.1, from any drive. OpenBattlefront copies what the game needs (about 10 GB) and never changes your copy." />
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,22,0,0">
                             <Button Style="{StaticResource GhostButton}" Content="Browse…" Command="{Binding BrowseCommand}" />
                             <Button Style="{StaticResource GhostButton}" Content="Resume last import" Margin="8,0,0,0" Command="{Binding ResumeCommand}"
@@ -123,23 +123,38 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- Found through Steam -->
-                <Border Style="{StaticResource Card}" Margin="0,14,0,0" Padding="16,12,12,12" Visibility="{Binding HasSteamCopy, Converter={StaticResource Vis}}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="&#xE73E;" Style="{StaticResource Glyph}" FontSize="14" Foreground="{StaticResource Success}" />
-                        <StackPanel Grid.Column="1" Margin="12,0,12,0">
-                            <TextBlock Text="Found your Steam copy" Style="{StaticResource H3}" FontSize="13.5" />
-                            <TextBlock Text="{Binding SteamCopy}" FontSize="12" Foreground="{StaticResource Faint}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"
-                                       ToolTip="{Binding SteamCopy}" />
-                        </StackPanel>
-                        <Button Grid.Column="2" Style="{StaticResource PrimaryButton}" Content="Use this copy" Command="{Binding UseSteamCopyCommand}" />
-                    </Grid>
-                </Border>
+                <!-- Copies found on this PC: Steam libraries, GOG, retail, and every drive -->
+                <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                    <ItemsControl ItemsSource="{Binding FoundCopies}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card}" Margin="0,4,0,0" Padding="16,10,12,10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="&#xE73E;" Style="{StaticResource Glyph}" FontSize="14" Foreground="{StaticResource Success}" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Margin="12,0,12,0">
+                                            <TextBlock Text="{Binding Source}" Style="{StaticResource H3}" FontSize="13.5" />
+                                            <TextBlock Text="{Binding GameData}" FontSize="12" Foreground="{StaticResource Faint}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"
+                                                       ToolTip="{Binding GameData}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Style="{StaticResource PrimaryButton}" Content="Use this copy" CommandParameter="{Binding}"
+                                                Command="{Binding DataContext.UseCopyCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+                    <TextBlock Text="{Binding SearchStatus}" Style="{StaticResource Caption}" FontWeight="Normal" VerticalAlignment="Center" />
+                    <Button Style="{StaticResource GhostButton}" Content="Search my drives" Margin="10,0,0,0" Padding="10,4"
+                            Command="{Binding SearchDrivesCommand}" Visibility="{Binding IsSearching, Converter={StaticResource NotVis}}" />
+                </StackPanel>
 
                 <TextBlock Text="{Binding InstallHint}" Style="{StaticResource Caption}" FontWeight="Normal" HorizontalAlignment="Center" Margin="0,14,0,0"
                            TextTrimming="CharacterEllipsis" />
