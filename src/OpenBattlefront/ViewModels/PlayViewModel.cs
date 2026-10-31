@@ -414,7 +414,9 @@ public sealed class PlayViewModel : ObservableObject
             _game = game;
             IsGameRunning = true;
             game.EnableRaisingEvents = true;
-            game.Exited += (_, _) => Application.Current.Dispatcher.Invoke(() =>
+            // BeginInvoke, not Invoke: .NET raises Exited holding the Process's lock and Dispose takes
+            // it too, so waiting here for the UI thread to dispose it froze the launcher
+            game.Exited += (_, _) => Application.Current.Dispatcher.BeginInvoke(() =>
             {
                 _game = null;
                 IsGameRunning = false;
