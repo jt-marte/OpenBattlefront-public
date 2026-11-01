@@ -178,6 +178,10 @@ public class ServerProfileTests
         Assert.Contains("/gamename \"Friday, night\"", args);
         Assert.Contains("/adminpw Adm1nPassw0rd ", args);
         Assert.Contains("/playerlimit 24 ", args);
+        // the most bots any mode has: the recommended 32 keeps players before 0.2.6 welcome
+        Assert.Contains("/bots 32 ", args);
+        profile.CtfBots = 48;
+        Assert.Contains("/bots 48 ", ServerHost.BuildArguments(profile, layout, out _));
         Assert.Contains("-port 3700 ", args);
         Assert.Contains("-logcmds \"all Warning, LogNet Inform, LogCore Inform\"", args);
         Assert.EndsWith($"-log \"{Path.Combine(layout.Logs, "server.log")}\"", args);

@@ -280,7 +280,7 @@
         <TextBlock Text="BATTLE" Style="{StaticResource Section}" />
         <Border Style="{StaticResource Card}" Margin="0,0,0,20" Padding="20,16">
             <StackPanel>
-                <TextBlock Text="Bots fill in around the players: a team holds up to 64 soldiers, so a full server of 64 players still has room for 64 bots." Style="{StaticResource RowNote}" Margin="0,0,0,12" />
+                <TextBlock Text="Bots fill in around the players: a team holds up to 64 soldiers, so a full server of 64 players still has room for 64 bots. More than 32 a team takes a server restart, and players on OpenSWBF2 0.2.6 or newer." Style="{StaticResource RowNote}" Margin="0,0,0,12" />
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />

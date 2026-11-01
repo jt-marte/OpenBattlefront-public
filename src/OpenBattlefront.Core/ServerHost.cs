@@ -108,6 +108,9 @@ public sealed class ServerHost
         {
             "/adminpw", profile.AdminPassword,
             "/playerlimit", profile.MaxPlayers.ToString(),
+            // The most bots a team any mode has: above 32, the server makes room for 64 a team
+            // (OpenSWBF2 0.2.6+), which takes players on 0.2.6+ too
+            "/bots", profile.MostBots.ToString(),
             "/tps", tickRate.ToString(),
             "-port", profile.Port.ToString(),
             "-logcmds", Quote(LogCommands),

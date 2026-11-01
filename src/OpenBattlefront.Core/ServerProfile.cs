@@ -37,6 +37,11 @@ public sealed class ServerProfile
     public const int RecommendedAssaultBots = 32;
     public const int MaxBots = 64;
     public const int MaxTeamSoldiers = 64;
+    /// <summary>Up to this many bots a team, players before 0.2.6 can join too.</summary>
+    public const int OldClientBots = 32;
+
+    [JsonIgnore]
+    public int MostBots => Math.Max(ConquestBots, Math.Max(CtfBots, AssaultBots));
 
     /// <summary>2 Medium, 3 Hard, 4 Overhaul (the AI overhaul's third difficulty).</summary>
     public int Difficulty { get; set; } = 3;
