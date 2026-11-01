@@ -7,5 +7,5 @@ The launcher checks the latest release when it starts (Settings > "Check for upd
 asks before updating, verifies the download's SHA-256, replaces itself and restarts.
 
 The full launcher download, with its included content, comes from the person who invited you.
-The game itself is [OpenSWBF2](https://github.com/jt-marte/OpenSWBF2); it needs your own copy of
-Star Wars Battlefront II (2005).
+The game itself is [OpenSWBF2](https://github.com/jt-marte/OpenSWBF2); it needs your own Steam or
+GOG copy of Star Wars Battlefront II (2005).
