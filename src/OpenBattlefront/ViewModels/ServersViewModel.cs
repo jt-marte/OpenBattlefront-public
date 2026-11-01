@@ -268,15 +268,45 @@ public sealed class ServerOptionsViewModel : ObservableObject
 
     // Battle
 
-    public int BotsPerTeam
+    public int ConquestBots
     {
-        get => Profile.BotsPerTeam;
+        get => Profile.ConquestBots;
         set
         {
-            Profile.BotsPerTeam = Math.Clamp(value, 0, 32);
-            Changed(nameof(BotsPerTeam), gameOption: true);
+            Profile.ConquestBots = Math.Clamp(value, 0, ServerProfile.MaxBots);
+            Changed(nameof(ConquestBots), gameOption: true);
+            Raise(nameof(ConquestBotsNote));
         }
     }
+
+    public int CtfBots
+    {
+        get => Profile.CtfBots;
+        set
+        {
+            Profile.CtfBots = Math.Clamp(value, 0, ServerProfile.MaxBots);
+            Changed(nameof(CtfBots), gameOption: true);
+            Raise(nameof(CtfBotsNote));
+        }
+    }
+
+    public int AssaultBots
+    {
+        get => Profile.AssaultBots;
+        set
+        {
+            Profile.AssaultBots = Math.Clamp(value, 0, ServerProfile.MaxBots);
+            Changed(nameof(AssaultBots), gameOption: true);
+            Raise(nameof(AssaultBotsNote));
+        }
+    }
+
+    public string ConquestBotsNote => BotsNote(ConquestBots, ServerProfile.RecommendedConquestBots);
+    public string CtfBotsNote => BotsNote(CtfBots, ServerProfile.RecommendedCtfBots);
+    public string AssaultBotsNote => BotsNote(AssaultBots, ServerProfile.RecommendedAssaultBots);
+
+    private static string BotsNote(int bots, int recommended) =>
+        bots == recommended ? "Recommended: the team size the maps were made for." : $"Recommended: {recommended}, the team size the maps were made for.";
 
     /// <summary>"2" Medium, "3" Hard, "4" Overhaul.</summary>
     public string Difficulty

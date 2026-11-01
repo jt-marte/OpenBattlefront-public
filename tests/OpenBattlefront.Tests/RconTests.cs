@@ -300,7 +300,7 @@ public class RconTests
 
         var profile = await ServerReader.ReadAsync(client);
         Assert.Equal(("Friday Night", 24, 30), (profile.Name, profile.MaxPlayers, profile.TickRate));
-        Assert.Equal((4, 8, false, ServerProfile.HeroUnlockTimer, 90, 250), (profile.Difficulty, profile.BotsPerTeam, profile.Heroes,
+        Assert.Equal((4, 8, false, ServerProfile.HeroUnlockTimer, 90, 250), (profile.Difficulty, profile.ConquestBots, profile.Heroes,
             profile.HeroUnlock, profile.HeroUnlockValue, profile.ConquestReinforcements));
         // What the server didn't answer keeps the launcher's default
         Assert.Equal(new ServerProfile().CtfCaptures, profile.CtfCaptures);

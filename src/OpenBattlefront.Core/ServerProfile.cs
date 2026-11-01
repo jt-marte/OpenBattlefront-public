@@ -24,7 +24,19 @@ public sealed class ServerProfile
     public int TickRate { get; set; } = 60;
     public string AdminPassword { get; set; } = NewAdminPassword();
 
-    public int BotsPerTeam { get; set; } = 16;
+    /// <summary>Bots a team, per mode, as the game's mode settings take them: Conquest, CTF (2 and
+    /// 1 flag), and Assault (space and hero assault, and hunt). A team holds up to
+    /// <see cref="MaxTeamSoldiers"/> soldiers on OpenSWBF2 0.2.6+, so players push bots out past that.</summary>
+    public int ConquestBots { get; set; } = RecommendedConquestBots;
+    public int CtfBots { get; set; } = RecommendedCtfBots;
+    public int AssaultBots { get; set; } = RecommendedAssaultBots;
+
+    /// <summary>The team sizes the stock maps were made for.</summary>
+    public const int RecommendedConquestBots = 32;
+    public const int RecommendedCtfBots = 32;
+    public const int RecommendedAssaultBots = 32;
+    public const int MaxBots = 64;
+    public const int MaxTeamSoldiers = 64;
 
     /// <summary>2 Medium, 3 Hard, 4 Overhaul (the AI overhaul's third difficulty).</summary>
     public int Difficulty { get; set; } = 3;
@@ -83,7 +95,9 @@ public sealed class ServerProfile
         Port = Math.Clamp(Port, 1024, 65534);
         MaxPlayers = Math.Clamp(MaxPlayers, 2, 64);
         if (!TickRates.Contains(TickRate)) TickRate = 60;
-        BotsPerTeam = Math.Clamp(BotsPerTeam, 0, 32);
+        ConquestBots = Math.Clamp(ConquestBots, 0, MaxBots);
+        CtfBots = Math.Clamp(CtfBots, 0, MaxBots);
+        AssaultBots = Math.Clamp(AssaultBots, 0, MaxBots);
         Difficulty = Math.Clamp(Difficulty, 2, 4);
         if (HeroUnlock != HeroUnlockTimer) HeroUnlock = HeroUnlockPoints;
         HeroUnlockValue = HeroUnlock == HeroUnlockTimer ? Math.Clamp(HeroUnlockValue, 0, 120) : Math.Clamp(HeroUnlockValue, 1, 50);
@@ -118,10 +132,11 @@ public sealed class ServerProfile
         return new (string, int)[]
         {
             ("difficulty", Difficulty),
-            ("conaiperteam", BotsPerTeam),
-            ("ctfaiperteam", BotsPerTeam),
-            ("assaiperteam", BotsPerTeam),
-            ("eliaiperteam", BotsPerTeam),
+            ("conaiperteam", ConquestBots),
+            ("ctfaiperteam", CtfBots),
+            ("assaiperteam", AssaultBots),
+            // the game keeps an elimination count too, but no map reads it
+            ("eliaiperteam", AssaultBots),
             ("teamdamage", On(TeamDamage)),
             ("shownames", On(ShowNames)),
             ("autoassignteams", On(AutoAssignTeams)),
@@ -161,7 +176,9 @@ public sealed class ServerProfile
         switch (command.ToLowerInvariant())
         {
             case "difficulty": Difficulty = value; break;
-            case "conaiperteam": BotsPerTeam = value; break;
+            case "conaiperteam": ConquestBots = value; break;
+            case "ctfaiperteam": CtfBots = value; break;
+            case "assaiperteam": AssaultBots = value; break;
             case "teamdamage": TeamDamage = On(); break;
             case "shownames": ShowNames = On(); break;
             case "autoassignteams": AutoAssignTeams = On(); break;
