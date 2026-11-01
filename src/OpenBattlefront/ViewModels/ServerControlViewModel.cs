@@ -11,8 +11,8 @@ using OpenBattlefront.Core.Rcon;
 
 namespace OpenBattlefront.ViewModels;
 
-public enum ServerStatus { NotRunning, Starting, Loading, Lobby, Warmup, Playing, Results, Stopping }
-public enum ControlTab { Playlist, Players, Chat, Options }
+public enum ServerStatus { NotRunning, Starting, Loading, Lobby, Warmup, Playing, Results, Stopping, NotAnswering }
+public enum ControlTab { Playlist, Players, Chat, Options, Mods }
 public enum CatalogStatus { Idle, Loading, Ready, NeedsUpdate, NotInstalled, Failed }
 public enum BattleKind { Ground, Space }
 
@@ -25,19 +25,35 @@ public sealed record FilterChoice(string? Id, string Name)
 /// <summary>
 /// The playlist and control screen: the map catalog, the playlist, the server's status and
 /// match controls, players, chat and the options that apply from the next map. Hosting starts
-/// the server here; "Connect as admin" will reuse it for a remote server.
+/// the server here. Connect to server as admin uses it too, for a server elsewhere (remote
+/// mode): rcon on its game port, and its mod service for the launcher lobby, its own map list
+/// and keeping what the admin applies.
 /// </summary>
 public sealed class ServerControlViewModel : ObservableObject
 {
     public static readonly TimeSpan StartTimeout = TimeSpan.FromSeconds(120);
 
+    /// <summary>How long a server elsewhere may be silent before it shows as not answering (its
+    /// game restarts, say). One missed poll takes rcon's retries, about 6 s.</summary>
+    private static readonly TimeSpan NotAnsweringAfter = TimeSpan.FromSeconds(15);
+
     private readonly MainViewModel _main;
     private readonly ServersViewModel _servers;
+    private readonly RemoteAdminViewModel? _remote;
     private readonly ServerHost _host;
     private readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromSeconds(2) };
     private readonly HashSet<string> _expanded = new(StringComparer.OrdinalIgnoreCase);
     private IServerAdmin? _admin;
     private ModHostService? _mods;
+    private ServerProfile _remoteProfile = new();
+    private ModUploadClient? _remoteMods;
+    private ServerAddress? _remoteAddress;
+    private string _remotePassword = "";
+    private bool _keepsSettings;
+    private AdminSettingsReply? _remoteSettings;
+    private MatchStatus? _match;
+    private DateTime _lastAnswer;
+    private string _catalogNote = "";
     private MapCatalog? _catalog;
     private CatalogStatus _catalogStatus;
     private string _catalogMessage = "";
@@ -66,10 +82,13 @@ public sealed class ServerControlViewModel : ObservableObject
     private bool _quietExit;
     private bool _busy;
 
-    public ServerControlViewModel(MainViewModel main, ServersViewModel servers)
+    /// <param name="remote">Connect to server as admin: the screen for a server elsewhere, whose
+    /// mods that view model shows on the Mods tab. Null for the server this launcher hosts.</param>
+    public ServerControlViewModel(MainViewModel main, ServersViewModel servers, RemoteAdminViewModel? remote = null)
     {
         _main = main;
         _servers = servers;
+        _remote = remote;
         _host = new ServerHost(main.Setup.Layout);
         _host.LineReceived += line => Ui(() => OnServerLine(line));
         _host.Exited += () => Ui(OnServerExited);
@@ -80,15 +99,15 @@ public sealed class ServerControlViewModel : ObservableObject
             FilterMaps();
         };
 
-        LiveOptions = new ServerOptionsViewModel(main, live: true) { ServerLocked = true };
+        LiveOptions = new ServerOptionsViewModel(main, live: true, owner: this, profile: () => Profile) { ServerLocked = true };
         MessagesView = CollectionViewSource.GetDefaultView(Messages);
         MessagesView.Filter = m => ShowServerLog || ((ChatLine)m).Kind != ChatKind.Log;
 
         LaunchCommand = new RelayCommand(() => _ = LaunchAsync(), () => CanLaunch);
-        StopCommand = new RelayCommand(() => _ = StopAsync(), () => IsRunning && Status != ServerStatus.Stopping);
+        StopCommand = new RelayCommand(() => _ = StopAsync(), () => ShowStop && Status != ServerStatus.Stopping);
         StartMatchCommand = new RelayCommand(() =>
         {
-            if (_mods != null) _ = StartThroughLobbyAsync();
+            if (_mods != null || _match != null) _ = StartThroughLobbyAsync();
             else Run(a => a.StartAsync(), "Match started.");
         }, () => CanControl && Status == ServerStatus.Lobby);
         EndMatchCommand = new RelayCommand(() => Run(a => a.EndMatchAsync(), "Match ended; the next map loads."), () => CanControl && Status is ServerStatus.Playing or ServerStatus.Warmup);
@@ -107,10 +126,30 @@ public sealed class ServerControlViewModel : ObservableObject
         SayCommand = new RelayCommand(() => _ = SayAsync(), () => CanControl && SayText.Trim().Length > 0);
         ApplyOptionsCommand = new RelayCommand(() => _ = ApplyOptionsAsync(), () => CanControl && LiveOptions.IsDirty);
         SelectTabCommand = new RelayCommand(p => Tab = Enum.Parse<ControlTab>((string)p!));
+        DisconnectCommand = new RelayCommand(() => _ = DisconnectAsync());
+        ResetSettingsCommand = new RelayCommand(() => _ = ResetSettingsAsync(), () => _remoteMods != null && HasSavedSettings && !_busy);
     }
 
     private ActivityViewModel Activity => _main.Activity;
-    private ServerProfile Profile => _main.Setup.State.Server;
+
+    /// <summary>The hosted server's settings (launcher.json), or what a server elsewhere told us.</summary>
+    private ServerProfile Profile => IsRemote ? _remoteProfile : _main.Setup.State.Server;
+
+    /// <summary>Connect to server as admin: a server elsewhere, not one this launcher hosts.</summary>
+    public bool IsRemote => _remote != null;
+
+    /// <summary>The server elsewhere keeps what is applied here for its next starts (its mod
+    /// service's /admin/settings).</summary>
+    public bool KeepsSettings => _keepsSettings;
+
+    /// <summary>The server elsewhere's mods, next to this PC's (its mod service).</summary>
+    public RemoteAdminViewModel? RemoteMods => _remote;
+    public bool HasModsTab => IsRemote && _remoteMods != null;
+
+    public string Title => IsRemote ? Profile.Name : "Playlist and control";
+
+    public ICommand DisconnectCommand { get; }
+    public ICommand ResetSettingsCommand { get; }
 
     /// <summary>Development and screenshots: a simulated server and the sample map list, no game.</summary>
     public bool UseFakeServer { get; set; }
@@ -133,14 +172,23 @@ public sealed class ServerControlViewModel : ObservableObject
             Raise(nameof(StatusText));
             Raise(nameof(StatusDetail));
             Raise(nameof(ShowLaunch));
+            Raise(nameof(ShowStop));
+            Raise(nameof(ShowBack));
             Raise(nameof(ShowPlaylistScreen));
-            if (_main.Servers != null) _main.Servers.Options.ServerLocked = IsRunning;
+            if (_main.Servers != null && !IsRemote) _main.Servers.Options.ServerLocked = IsRunning;
             CommandManager.InvalidateRequerySuggested();
         }
     }
 
     public bool IsRunning => Status != ServerStatus.NotRunning;
-    public bool ShowLaunch => !IsRunning;
+    public bool ShowLaunch => !IsRunning && !IsRemote;
+
+    /// <summary>Stop server for the hosted one; a server elsewhere is only disconnected from.</summary>
+    public bool ShowStop => IsRunning && !IsRemote;
+
+    /// <summary>The header's back button: to Server options before launching; always for a server elsewhere.</summary>
+    public bool ShowBack => ShowLaunch || IsRemote;
+    public string BackText => IsRemote ? "Server manager" : "Server options";
 
     /// <summary>The hosted server's process, so the Play page doesn't take it for the game.</summary>
     public int? ServerProcessId => _host.IsRunning ? _host.Process?.Id : null;
@@ -148,7 +196,7 @@ public sealed class ServerControlViewModel : ObservableObject
     private bool CanControl => _admin is { IsLoggedIn: true } && !_busy;
 
     private bool CanLaunch =>
-        !IsRunning && !Activity.IsBusy && Playlist.Count > 0 && (UseFakeServer || CatalogStatus == CatalogStatus.Ready);
+        ShowLaunch && !Activity.IsBusy && Playlist.Count > 0 && (UseFakeServer || CatalogStatus == CatalogStatus.Ready);
 
     public string StatusText => Status switch
     {
@@ -159,6 +207,7 @@ public sealed class ServerControlViewModel : ObservableObject
         ServerStatus.Warmup => "Warm-up",
         ServerStatus.Playing => "Playing",
         ServerStatus.Results => "Results",
+        ServerStatus.NotAnswering => "Not answering",
         _ => "Stopping",
     };
 
@@ -178,12 +227,39 @@ public sealed class ServerControlViewModel : ObservableObject
                 ServerStatus.Playing when s != null => $"{map} · {(s.TimeLeft >= 0 ? Clock(s.TimeLeft) + " left · " : "")}{Plural(s.Players, "player")} · tickets {s.Tickets1}/{s.Tickets2}",
                 ServerStatus.Results when s != null => $"Match over on {map}" + (s.Next.Length > 0 ? $" · next {MapTitle(s.Next)}" : ""),
                 ServerStatus.Stopping => "Closing the server",
+                ServerStatus.NotAnswering => "Its game may be restarting. This screen carries on once it answers.",
                 _ => "",
             };
         }
     }
 
-    public string ServerSummary => $"{Profile.Name}  ·  port {Profile.Port}  ·  {Profile.TickRate} Hz  ·  {Profile.MaxPlayers} players  ·  {Profile.DifficultyName} AI";
+    public string ServerSummary => IsRemote
+        ? $"{_remoteAddress}  ·  {Profile.TickRate} Hz  ·  {Profile.MaxPlayers} players  ·  {Profile.DifficultyName} AI"
+        : $"{Profile.Name}  ·  port {Profile.Port}  ·  {Profile.TickRate} Hz  ·  {Profile.MaxPlayers} players  ·  {Profile.DifficultyName} AI";
+
+    /// <summary>The Players tab with nobody on.</summary>
+    public string NoPlayersText => IsRemote
+        ? "No one is on yet. Players join from the launcher's Multiplayer page, or the game's Direct Connect, with the server's address."
+        : "No one has joined yet. Players join from the launcher's Multiplayer page, or the game's Direct Connect, with this PC's address and the server's port.";
+
+    public string OptionsNote => !IsRemote
+        ? "These apply from the next map. Name, port, tick rate and passwords change only when the server starts again."
+        : KeepsSettings
+            ? "These apply from the next map, and the server keeps them for its next starts. Its name, player limit and tick rate apply when its game restarts."
+            : "These apply from the next map, until the server restarts: it keeps no settings from here.";
+
+    /// <summary>The hosted server's log is in the chat; a server elsewhere sends only chat and events.</summary>
+    public bool ShowServerLogSwitch => !IsRemote;
+
+    /// <summary>The saved name or limits wait for the server's game to restart.</summary>
+    public bool RestartNeeded => _remoteSettings?.RestartNeeded == true;
+
+    /// <summary>The server elsewhere keeps something an admin applied from here.</summary>
+    public bool HasSavedSettings => _remoteSettings?.HasSaved == true;
+
+    /// <summary>A note above the map list: the server elsewhere has no list of its own, so this one is this PC's.</summary>
+    public string CatalogNote { get => _catalogNote; private set { if (Set(ref _catalogNote, value)) Raise(nameof(HasCatalogNote)); } }
+    public bool HasCatalogNote => CatalogNote.Length > 0;
 
     private static string Plural(int n, string word) => $"{n} {word}{(n == 1 ? "" : "s")}";
     private static string Clock(int seconds) => seconds < 0 ? "--:--" : $"{seconds / 60}:{seconds % 60:00}";
@@ -331,6 +407,18 @@ public sealed class ServerControlViewModel : ObservableObject
             SetCatalog(SampleCatalog.Load());
             return;
         }
+        if (IsRemote)
+        {
+            // The server's own list (its game wrote it), so every map offered loads there
+            if (await ReadTheirMapsAsync() is { } theirs)
+            {
+                CatalogNote = "";
+                SetCatalog(theirs);
+                if (refresh) _main.ShowNotice($"The server has {theirs.Maps.Count} maps.");
+                return;
+            }
+            CatalogNote = "These are your game's maps: the server has no list of its own. A map from a mod it lacks won't load there.";
+        }
         if (!_main.Setup.IsReady)
         {
             CatalogStatus = CatalogStatus.NotInstalled;
@@ -365,6 +453,13 @@ public sealed class ServerControlViewModel : ObservableObject
         }
         CatalogStatus = CatalogStatus.Failed;
         CatalogMessage = error is OperationCanceledException ? "Cancelled." : error?.Message ?? "The map list is empty.";
+    }
+
+    private async Task<MapCatalog?> ReadTheirMapsAsync()
+    {
+        if (_remoteMods == null) return null;
+        try { return await _remoteMods.GetMissionsAsync(CancellationToken.None); }
+        catch (Exception e) when (e is HttpRequestException or ModServiceException or InvalidDataException or TaskCanceledException) { return null; }
     }
 
     public void SetCatalog(MapCatalog catalog)
@@ -430,7 +525,8 @@ public sealed class ServerControlViewModel : ObservableObject
         Playlist.Clear();
         foreach (var entry in Profile.Playlist) Playlist.Add(new PlaylistItemViewModel(this, entry, _catalog?.Find(entry.Mission), _catalog != null));
         AfterPlaylistChange(save: false);
-        PlaylistDirty = false;
+        // A server elsewhere keeps its unsent edits through a map list refresh
+        if (!IsRemote) PlaylistDirty = false;
         MarkCurrent();
     }
 
@@ -502,7 +598,7 @@ public sealed class ServerControlViewModel : ObservableObject
         if (save)
         {
             Profile.Playlist = Playlist.Select(p => p.Entry).ToList();
-            _main.Setup.Save();
+            if (!IsRemote) _main.Setup.Save();
             if (IsRunning) PlaylistDirty = true;
         }
         Raise(nameof(PlaylistEmpty));
@@ -527,32 +623,105 @@ public sealed class ServerControlViewModel : ObservableObject
 
     private async Task ApplyPlaylistAsync()
     {
-        if (_admin == null) return;
-        var unknown = _catalog == null ? new List<string>() : Playlist.Where(p => p.IsUnknown).Select(p => p.Entry.Mission).ToList();
-        if (unknown.Count > 0)
-        {
-            _main.ShowNotice($"Not in the map list: {string.Join(", ", unknown)}. Remove them or refresh the maps first.", error: true);
-            return;
-        }
+        if (_admin == null || !CheckPlaylist()) return;
         await Guard(async admin =>
         {
             await admin.SetRotationAsync(Profile.Playlist);
             PlaylistDirty = false;
+            string kept = await KeepOnServerAsync(AdminSettings.ForPlaylist(Profile.Playlist), "it");
             string first = Profile.Playlist[0].Mission;
             if (Status == ServerStatus.Lobby && _state != null && !string.Equals(_state.Map, first, StringComparison.OrdinalIgnoreCase))
             {
                 // Nothing is being played yet: load the new first map. /changemap keeps the hold,
                 // so it waits in the lobby too.
                 await admin.NextMapAsync(first);
-                _main.ShowNotice($"Playlist sent. The lobby moves to {MapTitle(first)}.");
+                _main.ShowNotice($"Playlist sent. The lobby moves to {MapTitle(first)}." + kept);
             }
             else
             {
-                _main.ShowNotice(Status is ServerStatus.Playing or ServerStatus.Warmup
+                _main.ShowNotice((Status is ServerStatus.Playing or ServerStatus.Warmup
                     ? "Playlist sent. The map being played stays; the new order follows it."
-                    : "Playlist sent.");
+                    : "Playlist sent.") + kept);
             }
         }, poll: true);
+    }
+
+    /// <summary>Every map is in the map list: a wrong name stops the server's next load.</summary>
+    private bool CheckPlaylist()
+    {
+        var unknown = _catalog == null ? new List<string>() : Playlist.Where(p => p.IsUnknown).Select(p => p.Entry.Mission).ToList();
+        if (unknown.Count == 0) return true;
+        _main.ShowNotice($"Not in the map list: {string.Join(", ", unknown)}. Remove them or refresh the maps first.", error: true);
+        return false;
+    }
+
+    internal bool CanPlayNow(PlaylistItemViewModel item) =>
+        CanControl && !item.IsUnknown && Status is ServerStatus.Lobby or ServerStatus.Warmup or ServerStatus.Playing or ServerStatus.Results;
+
+    /// <summary>The server goes to this map now (/changemap). An unsent playlist is sent first, so
+    /// the rotation carries on from there.</summary>
+    internal async Task PlayNowAsync(PlaylistItemViewModel item)
+    {
+        string mission = item.Entry.Mission;
+        if (PlaylistDirty && !CheckPlaylist()) return;
+        if (Status is ServerStatus.Playing or ServerStatus.Warmup &&
+            !await _main.ConfirmAsync($"Play {MapTitle(mission)} now?", "This match ends now, and the server loads that map.", "Play now"))
+            return;
+        await Guard(async admin =>
+        {
+            if (PlaylistDirty)
+            {
+                await admin.SetRotationAsync(Profile.Playlist);
+                PlaylistDirty = false;
+                _main.ShowNotice("Playlist sent." + await KeepOnServerAsync(AdminSettings.ForPlaylist(Profile.Playlist), "it"));
+            }
+            await admin.NextMapAsync(mission);
+            AddMessage(ChatKind.Admin, $"Changing to {MapTitle(mission)}.");
+            await Task.Delay(300);
+        }, poll: true);
+    }
+
+    /// <summary>A server elsewhere keeps what was just sent for its next starts (when its service
+    /// does). Returns what to add to the notice.</summary>
+    private async Task<string> KeepOnServerAsync(AdminSettings settings, string what)
+    {
+        if (!IsRemote || _remoteMods == null || !_keepsSettings) return "";
+        try
+        {
+            ShowSettings(await _remoteMods.SaveSettingsAsync(settings, CancellationToken.None));
+            return $" The server keeps {what} for its next starts.";
+        }
+        catch (Exception e) when (e is HttpRequestException or ModServiceException or InvalidDataException or TaskCanceledException)
+        {
+            return $" The server couldn't keep {what} for its next start: {e.Message}";
+        }
+    }
+
+    private void ShowSettings(AdminSettingsReply? settings)
+    {
+        _remoteSettings = settings;
+        Raise(nameof(RestartNeeded));
+        Raise(nameof(HasSavedSettings));
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    /// <summary>Back to compose.yaml's settings: the server forgets what admins saved from here.</summary>
+    private async Task ResetSettingsAsync()
+    {
+        if (_remoteMods == null) return;
+        if (!await _main.ConfirmAsync("Use compose.yaml's settings?",
+                "The server forgets the playlist, options, name and limits saved from here, and uses compose.yaml's from its next start. The game running now keeps what it has.",
+                "Use compose.yaml's"))
+            return;
+        try
+        {
+            ShowSettings(await _remoteMods.ResetSettingsAsync(CancellationToken.None));
+            _main.ShowNotice("The server uses compose.yaml's settings from its next start.");
+        }
+        catch (Exception e) when (e is HttpRequestException or ModServiceException or InvalidDataException or TaskCanceledException)
+        {
+            _main.ShowError(e);
+        }
     }
 
     public ObservableCollection<PlayerRowViewModel> Players { get; } = new();
@@ -648,9 +817,10 @@ public sealed class ServerControlViewModel : ObservableObject
     internal void OptionsChanged(ServerOptionsViewModel source)
     {
         if (source != LiveOptions) LiveOptions.Refresh();
-        else _servers.Options.Refresh();
+        else if (!IsRemote) _servers.Options.Refresh();
         if (source != LiveOptions && IsRunning) LiveOptions.IsDirty = true;
         Raise(nameof(ServerSummary));
+        Raise(nameof(Title));
     }
 
     private async Task ApplyOptionsAsync()
@@ -659,7 +829,23 @@ public sealed class ServerControlViewModel : ObservableObject
         {
             foreach (var (command, value) in Profile.OptionCommands()) await admin.SetOptionAsync(command, value);
             LiveOptions.IsDirty = false;
-            _main.ShowNotice("Options sent. They apply from the next map.");
+            if (!IsRemote)
+            {
+                _main.ShowNotice("Options sent. They apply from the next map.");
+                return;
+            }
+            // A server elsewhere also keeps them, with its name and limits for its next start
+            var keep = AdminSettings.ForOptions(Profile);
+            bool restartSettings = LiveOptions.RestartSettingsChanged && KeepsSettings;
+            if (restartSettings)
+            {
+                var server = AdminSettings.ForServer(Profile);
+                (keep.Name, keep.MaxPlayers, keep.TickRate) = (server.Name, server.MaxPlayers, server.TickRate);
+            }
+            string kept = await KeepOnServerAsync(keep, "them");
+            LiveOptions.RestartSettingsChanged = false;
+            _main.ShowNotice("Options sent. They apply from the next map." + kept +
+                             (restartSettings && RestartNeeded ? " The name and limits apply when its game restarts." : ""));
         });
     }
 
@@ -741,6 +927,7 @@ public sealed class ServerControlViewModel : ObservableObject
     {
         if (!Profile.ShareMods || UseFakeServer || _mods != null) return;
         var layout = _main.Setup.Layout;
+        var maps = new MapCatalogStore(layout, _main.Setup.State.InstalledVersion);
         var service = new ModHostService(new ModHostOptions
         {
             AddOn = layout.AddOn,
@@ -752,6 +939,7 @@ public sealed class ServerControlViewModel : ObservableObject
             RateBytesPerSecond = Profile.ModRate * 125_000.0,
             Bind = Loopback ? IPAddress.Loopback : IPAddress.Any,
             Port = Profile.Port,
+            Missions = maps.TryReadCached,
         }, new AdminGameProbe(admin));
         try
         {
@@ -789,31 +977,41 @@ public sealed class ServerControlViewModel : ObservableObject
     private void UpdateSharing()
     {
         var mods = _mods;
-        if (mods == null)
+        IReadOnlyList<LobbyPlayer> lobby;
+        if (mods != null)
         {
-            SharingText = "";
-            LauncherWaiting = Array.Empty<LobbyRow>();
-        }
-        else
-        {
-            var lobby = mods.Lobby.List();
+            lobby = mods.Lobby.List();
             bool loading = (string?)mods.Watch.Describe()["start"] == "loading";
             SharingText = $"Sharing {Plural(mods.Library.Folders.Count, "mod")} on TCP {mods.Port}  ·  {lobby.Count} waiting in launchers" +
                 (loading ? "  ·  opening their games" : "");
-            LauncherWaiting = lobby.Select(p => new LobbyRow(p.Name, p.IsDownloading ? $"Downloading {p.Progress}%" : "Waiting in the launcher", false, false)).ToList();
         }
+        else if (_match != null)
+        {
+            // A server elsewhere: its mod service's lobby, read with /status
+            lobby = _match.Lobby;
+            SharingText = $"Launcher lobby on TCP {_remoteAddress?.Port}  ·  {lobby.Count} waiting in launchers" +
+                (_match.IsLoading ? "  ·  opening their games" : "");
+        }
+        else
+        {
+            lobby = Array.Empty<LobbyPlayer>();
+            SharingText = "";
+        }
+        LauncherWaiting = lobby.Select(p => new LobbyRow(p.Name, p.IsDownloading ? $"Downloading {p.Progress}%" : "Waiting in the launcher", false, false)).ToList();
         Raise(nameof(HasSharingText));
         Raise(nameof(HasLauncherWaiting));
         Raise(nameof(NoPlayers));
     }
 
     /// <summary>Start match with the launcher lobby: every waiting player's game opens first, and
-    /// the match begins once they're in (or after 60 s); anyone still downloading joins later.</summary>
+    /// the match begins once they're in (or after 60 s); anyone still downloading joins later.
+    /// The hosted server's lobby runs here; a server elsewhere runs its own.</summary>
     private async Task StartThroughLobbyAsync()
     {
         var mods = _mods;
-        if (mods == null || _busy) return;
-        var lobby = mods.Lobby.List();
+        var remote = _remoteMods;
+        if (mods == null && (remote == null || _match == null) || _busy) return;
+        var lobby = mods != null ? mods.Lobby.List() : _match!.Lobby;
         var downloading = lobby.Where(p => p.IsDownloading).Select(p => p.Name).ToList();
         int waiting = lobby.Count - downloading.Count;
         if (downloading.Count > 0 && !await _main.ConfirmAsync("Start the match?",
@@ -823,7 +1021,8 @@ public sealed class ServerControlViewModel : ObservableObject
         CommandManager.InvalidateRequerySuggested();
         try
         {
-            await mods.Watch.StartAsync(CancellationToken.None);
+            if (mods != null) await mods.Watch.StartAsync(CancellationToken.None);
+            else await remote!.StartMatchAsync(CancellationToken.None);
             AddMessage(ChatKind.Admin, waiting > 0
                 ? $"Starting: the games of {Plural(waiting, "player")} waiting in launchers are opening; the match begins once they're in."
                 : "Match started.");
@@ -831,6 +1030,10 @@ public sealed class ServerControlViewModel : ObservableObject
         catch (ModHostRefused e)
         {
             _main.ShowNotice(char.ToUpperInvariant(e.Message[0]) + e.Message[1..] + ".", error: true);
+        }
+        catch (Exception e) when (e is ModServiceException or HttpRequestException or TaskCanceledException)
+        {
+            _main.ShowError(e);
         }
         finally
         {
@@ -870,7 +1073,8 @@ public sealed class ServerControlViewModel : ObservableObject
         admin.Pushed += line => Ui(() => OnPushed(line));
         admin.Lost += _ => Ui(() =>
         {
-            if (IsRunning) AddMessage(ChatKind.Admin, "The server stopped answering.");
+            // A server elsewhere shows it through its polls, and comes back by itself
+            if (IsRunning && !IsRemote) AddMessage(ChatKind.Admin, "The server stopped answering.");
         });
         if (Status == ServerStatus.Starting) Status = ServerStatus.Loading;
         _poll.Start();
@@ -903,6 +1107,75 @@ public sealed class ServerControlViewModel : ObservableObject
             await client.DisposeAsync();
             _main.ShowNotice("The server left running didn't answer: " + e.Message, error: true);
         }
+    }
+
+    /// <summary>Connect to server as admin: this screen for a server elsewhere, logged in over
+    /// rcon. <paramref name="profile"/> is what it said it runs (ServerReader);
+    /// <paramref name="settings"/> what its service keeps for the next start, whose name and
+    /// limits are the ones shown.</summary>
+    internal async Task AttachRemoteAsync(ServerAddress address, string password, IServerAdmin admin, ModUploadClient? mods,
+                                          bool keepsSettings, ServerProfile profile, AdminSettingsReply? settings)
+    {
+        _remoteAddress = address;
+        _remotePassword = password;
+        _remoteMods = mods;
+        _keepsSettings = keepsSettings && mods != null && settings != null;
+        if (settings?.Settings is { } next)
+            new AdminSettings { Name = next.Name, MaxPlayers = next.MaxPlayers, TickRate = next.TickRate }.ApplyTo(profile);
+        profile.Port = address.Port;
+        _remoteProfile = profile;
+        ShowSettings(settings);
+        Messages.Clear();
+        _state = null;
+        _match = null;
+        _lastAnswer = DateTime.UtcNow;
+        PlaylistDirty = false;
+        LiveOptions.IsDirty = false;
+        LiveOptions.RestartSettingsChanged = false;
+        Tab = ControlTab.Playlist;
+        Status = ServerStatus.Loading;
+        Attach(admin);
+        AddMessage(ChatKind.Admin, $"Connected to {profile.Name} at {address} as admin.");
+
+        _catalog = null;
+        Maps.Clear();
+        await LoadCatalogAsync(refresh: false);
+        if (_catalog == null) LoadPlaylist();
+        LiveOptions.Refresh();
+        foreach (string name in new[] { nameof(Title), nameof(ServerSummary), nameof(KeepsSettings), nameof(HasModsTab), nameof(OptionsNote), nameof(NoPlayersText) })
+            Raise(name);
+        await PollAsync();
+    }
+
+    /// <summary>Screenshots: a server elsewhere's launcher lobby and Mods tab, without polling it.</summary>
+    internal void ShowSampleLobby(ModUploadClient mods, MatchStatus match)
+    {
+        _poll.Stop();
+        _remoteMods = mods;
+        _keepsSettings = true;
+        _match = match;
+        UpdateSharing();
+        foreach (string name in new[] { nameof(HasModsTab), nameof(KeepsSettings), nameof(OptionsNote) }) Raise(name);
+        LiveOptions.Refresh();
+    }
+
+    /// <summary>Leaves a server elsewhere as it is, and logs out.</summary>
+    public async Task DisconnectAsync()
+    {
+        if (!IsRemote) return;
+        _poll.Stop();
+        var admin = _admin;
+        _admin = null;
+        _state = null;
+        _match = null;
+        _remoteMods = null;
+        _keepsSettings = false;
+        ShowSettings(null);
+        Status = ServerStatus.NotRunning;
+        SetPlayers(Array.Empty<PlayerInfo>());
+        UpdateSharing();
+        if (admin != null) await admin.DisposeAsync();
+        _remote!.OnDisconnected();
     }
 
     private async Task StopAsync()
@@ -964,12 +1237,18 @@ public sealed class ServerControlViewModel : ObservableObject
     private async Task PollAsync()
     {
         var admin = _admin;
-        if (admin is not { IsLoggedIn: true } || _polling) return;
+        if (admin == null || _polling || !admin.IsLoggedIn && !IsRemote) return;
         _polling = true;
         try
         {
+            // A server elsewhere that restarted its game forgot the login: take it again
+            if (!admin.IsLoggedIn) await admin.ConnectAsync(_remotePassword, CancellationToken.None);
+            bool wasDown = Status == ServerStatus.NotAnswering;
             ApplyState(await admin.StateAsync());
+            _lastAnswer = DateTime.UtcNow;
+            if (wasDown) AddMessage(ChatKind.Admin, "The server answers again.");
             if (_pollCount++ % 2 == 0 || Tab == ControlTab.Players) SetPlayers(await admin.PlayersAsync());
+            if (IsRemote) await ReadRemoteStatusAsync();
             UpdateSharing();
         }
         catch (NotSupportedException e)
@@ -979,11 +1258,33 @@ public sealed class ServerControlViewModel : ObservableObject
         }
         catch (Exception e) when (e is TimeoutException or RconException or System.Net.Sockets.SocketException or ObjectDisposedException)
         {
-            // The next tick tries again; a stopped server shows up through its process.
+            // The next tick tries again; a stopped hosted server shows up through its process,
+            // a server elsewhere as not answering.
+            if (IsRemote && _admin == admin && Status != ServerStatus.NotAnswering && DateTime.UtcNow - _lastAnswer > NotAnsweringAfter)
+            {
+                Status = ServerStatus.NotAnswering;
+                AddMessage(ChatKind.Admin, "The server stopped answering.");
+            }
         }
         finally
         {
             _polling = false;
+        }
+    }
+
+    /// <summary>A server elsewhere: its launcher lobby, and (now and then) what it keeps for its next start.</summary>
+    private async Task ReadRemoteStatusAsync()
+    {
+        var mods = _remoteMods;
+        if (mods == null) return;
+        try
+        {
+            _match = await mods.StatusAsync(CancellationToken.None);
+            if (_keepsSettings && _pollCount % 10 == 1) ShowSettings(await mods.GetSettingsAsync(CancellationToken.None) ?? _remoteSettings);
+        }
+        catch (Exception e) when (e is HttpRequestException or ModServiceException or InvalidDataException or TaskCanceledException)
+        {
+            _match = null;
         }
     }
 
@@ -1059,7 +1360,8 @@ public sealed class ServerControlViewModel : ObservableObject
         {
             await action(admin);
         }
-        catch (Exception e) when (e is TimeoutException or RconException or NotSupportedException or System.Net.Sockets.SocketException or ObjectDisposedException)
+        catch (Exception e) when (e is TimeoutException or RconException or NotSupportedException or System.Net.Sockets.SocketException or ObjectDisposedException
+                                      or ModServiceException or HttpRequestException or InvalidDataException)
         {
             _main.ShowError(e);
         }

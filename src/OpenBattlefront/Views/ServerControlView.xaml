@@ -193,6 +193,9 @@
                 <DataTrigger Binding="{Binding Status}" Value="Stopping">
                     <Setter Property="Fill" Value="{StaticResource Danger}" />
                 </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="NotAnswering">
+                    <Setter Property="Fill" Value="{StaticResource Danger}" />
+                </DataTrigger>
             </Style.Triggers>
         </Style>
     </UserControl.Resources>
@@ -208,10 +211,10 @@
         <!-- Header -->
         <Grid Margin="0,0,0,12" MinHeight="32">
             <StackPanel Orientation="Horizontal">
-                <Button Style="{StaticResource IconButton}" Content="&#xE72B;" Margin="-6,0,4,0" ToolTip="Server options"
+                <Button Style="{StaticResource IconButton}" Content="&#xE72B;" Margin="-6,0,4,0" ToolTip="{Binding BackText}"
                         Command="{Binding DataContext.BackCommand, RelativeSource={RelativeSource AncestorType=views:ServersView}}"
-                        Visibility="{Binding ShowLaunch, Converter={StaticResource Vis}}" />
-                <TextBlock Text="Playlist and control" Style="{StaticResource H2}" FontSize="20" VerticalAlignment="Center" />
+                        Visibility="{Binding ShowBack, Converter={StaticResource Vis}}" />
+                <TextBlock Text="{Binding Title}" Style="{StaticResource H2}" FontSize="20" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="420" />
             </StackPanel>
             <TextBlock Text="{Binding ServerSummary}" Style="{StaticResource Caption}" FontWeight="Normal" HorizontalAlignment="Right" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis" MaxWidth="380" ToolTip="{Binding ServerSummary}" />
@@ -222,10 +225,17 @@
             <StackPanel>
                 <DockPanel>
                     <Button DockPanel.Dock="Right" Style="{StaticResource DangerButton}" Height="28" Margin="12,-2,0,-2" Command="{Binding StopCommand}"
-                            Visibility="{Binding IsRunning, Converter={StaticResource Vis}}">
+                            Visibility="{Binding ShowStop, Converter={StaticResource Vis}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE71A;" Style="{StaticResource BtnGlyph}" />
                             <TextBlock Text="Stop server" />
+                        </StackPanel>
+                    </Button>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Small}" Height="28" Margin="12,-2,0,-2" Command="{Binding DisconnectCommand}"
+                            Visibility="{Binding IsRemote, Converter={StaticResource Vis}}" ToolTip="Log out; the server carries on as it is">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE8D8;" Style="{StaticResource BtnGlyph}" />
+                            <TextBlock Text="Disconnect" />
                         </StackPanel>
                     </Button>
                     <Border DockPanel.Dock="Left" CornerRadius="11" Padding="9,2,11,3" Background="{StaticResource SurfaceHi}" VerticalAlignment="Center">
@@ -239,7 +249,7 @@
                 </DockPanel>
                 <TextBlock Text="{Binding SharingText}" FontSize="12" Foreground="{StaticResource Faint}" Margin="2,7,0,0" TextTrimming="CharacterEllipsis"
                            Visibility="{Binding HasSharingText, Converter={StaticResource Vis}}"
-                           ToolTip="Joining launchers get these mods from this PC and wait in the launcher lobby until you start the match" />
+                           ToolTip="Joining launchers get the server's mods and wait in the launcher lobby until you start the match" />
                 <DockPanel Margin="0,10,0,0" LastChildFill="False">
                     <Button DockPanel.Dock="Left" Style="{StaticResource SmallPrimary}" Command="{Binding LaunchCommand}"
                             Visibility="{Binding ShowLaunch, Converter={StaticResource Vis}}">
@@ -296,6 +306,9 @@
                                  IsChecked="{Binding Tab, Converter={StaticResource Eq}, ConverterParameter=Chat}" />
                     <RadioButton Style="{StaticResource Segment}" Content="Options"
                                  IsChecked="{Binding Tab, Converter={StaticResource Eq}, ConverterParameter=Options}" />
+                    <RadioButton Style="{StaticResource Segment}" Content="Mods"
+                                 IsChecked="{Binding Tab, Converter={StaticResource Eq}, ConverterParameter=Mods}"
+                                 Visibility="{Binding HasModsTab, Converter={StaticResource Vis}}" />
                 </StackPanel>
             </Border>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
@@ -357,6 +370,9 @@
                             <TextBlock Text="{Binding CatalogCount}" FontSize="11" Foreground="{StaticResource Faint}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,6,0" />
                         </DockPanel>
                         <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto" Visibility="{Binding CatalogReady, Converter={StaticResource Vis}}">
+                          <StackPanel>
+                            <TextBlock Text="{Binding CatalogNote}" FontSize="11.5" Foreground="#E0A93B" TextWrapping="Wrap" Margin="4,0,10,8"
+                                       Visibility="{Binding HasCatalogNote, Converter={StaticResource Vis}}" />
                             <ItemsControl ItemsSource="{Binding Maps}" Margin="0,0,6,0">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:CatalogMapViewModel}">
@@ -427,6 +443,7 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                          </StackPanel>
                         </ScrollViewer>
                         <StackPanel Grid.Row="4" VerticalAlignment="Center" Margin="10,0,16,30" Visibility="{Binding CatalogReady, Converter={StaticResource NotVis}}">
                             <TextBlock Text="{Binding CatalogMessage}" Style="{StaticResource Body}" TextAlignment="Center" />
@@ -477,6 +494,7 @@
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="{Binding Number}" FontSize="12" Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
@@ -509,7 +527,10 @@
                                                                    Visibility="{Binding Text, ElementName=T2, Converter={StaticResource Show}, ConverterParameter=''}" />
                                                     </Grid>
                                                 </StackPanel>
-                                                <Button Grid.Column="3" Style="{StaticResource IconButton}" Content="&#xE711;" Width="26" Height="26" FontSize="10" Margin="4,0,0,0"
+                                                <Button Grid.Column="3" Style="{StaticResource IconButton}" Content="&#xE768;" Width="26" Height="26" FontSize="10" Margin="4,0,0,0"
+                                                        Command="{Binding PlayNowCommand}" ToolTip="Play this map now"
+                                                        Visibility="{Binding DataContext.IsRunning, RelativeSource={RelativeSource AncestorType=ListBox}, Converter={StaticResource Vis}}" />
+                                                <Button Grid.Column="4" Style="{StaticResource IconButton}" Content="&#xE711;" Width="26" Height="26" FontSize="10" Margin="2,0,0,0"
                                                         Command="{Binding RemoveCommand}" ToolTip="Remove (Delete)" />
                                             </Grid>
                                         </Border>
@@ -653,8 +674,7 @@
                   </StackPanel>
                 </ScrollViewer>
                 <TextBlock Grid.Row="1" Style="{StaticResource Body}" TextAlignment="Center" VerticalAlignment="Center" Margin="40,0,40,30"
-                           Visibility="{Binding NoPlayers, Converter={StaticResource Vis}}"
-                           Text="No one has joined yet. Players join from the launcher's Multiplayer page, or the game's Direct Connect, with this PC's address and the server's port." />
+                           Visibility="{Binding NoPlayers, Converter={StaticResource Vis}}" Text="{Binding NoPlayersText}" />
             </Grid>
         </Border>
 
@@ -694,7 +714,8 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
                 <DockPanel Grid.Row="1" Margin="0,10,6,0">
-                    <CheckBox DockPanel.Dock="Left" Style="{StaticResource Switch}" Content="Server log" FontSize="12.5" IsChecked="{Binding ShowServerLog}" Margin="0,0,14,0" />
+                    <CheckBox DockPanel.Dock="Left" Style="{StaticResource Switch}" Content="Server log" FontSize="12.5" IsChecked="{Binding ShowServerLog}" Margin="0,0,14,0"
+                              Visibility="{Binding ShowServerLogSwitch, Converter={StaticResource Vis}}" />
                     <Button DockPanel.Dock="Right" Style="{StaticResource SmallPrimary}" Margin="8,0,0,0" Command="{Binding SayCommand}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE724;" Style="{StaticResource BtnGlyph}" />
@@ -720,17 +741,37 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <Border Background="{StaticResource AccentSoft}" CornerRadius="10" Padding="14,8,8,8" Margin="0,0,0,10">
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Style="{StaticResource SmallPrimary}" Margin="0" Height="30" Content="Apply options" Command="{Binding ApplyOptionsCommand}" />
-                    <TextBlock Text="&#xE946;" Style="{StaticResource Glyph}" FontSize="13" Foreground="{StaticResource Accent}" Margin="0,0,10,0" />
-                    <TextBlock VerticalAlignment="Center" FontSize="12.5" Foreground="{StaticResource Text}" TextWrapping="Wrap" Margin="0,0,12,0"
-                               Text="These apply from the next map. Name, port, tick rate and passwords change only when the server starts again." />
-                </DockPanel>
-            </Border>
+            <StackPanel Margin="0,0,0,10">
+                <Border Background="{StaticResource AccentSoft}" CornerRadius="10" Padding="14,8,8,8">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource SmallPrimary}" Margin="0" Height="30" Content="Apply options" Command="{Binding ApplyOptionsCommand}" />
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Small}" Height="30" Margin="0,0,8,0" Content="Use compose.yaml's settings" Command="{Binding ResetSettingsCommand}"
+                                Visibility="{Binding HasSavedSettings, Converter={StaticResource Vis}}"
+                                ToolTip="The server forgets what admins saved from here, from its next start" />
+                        <TextBlock Text="&#xE946;" Style="{StaticResource Glyph}" FontSize="13" Foreground="{StaticResource Accent}" Margin="0,0,10,0" />
+                        <TextBlock VerticalAlignment="Center" FontSize="12.5" Foreground="{StaticResource Text}" TextWrapping="Wrap" Margin="0,0,12,0" Text="{Binding OptionsNote}" />
+                    </DockPanel>
+                </Border>
+                <!-- A server elsewhere: the name or limits saved wait for its game to restart -->
+                <Border Background="{StaticResource Surface}" BorderBrush="#E0A93B" BorderThickness="1" CornerRadius="10" Padding="14,8,8,8" Margin="0,8,0,0"
+                        Visibility="{Binding RestartNeeded, Converter={StaticResource Vis}}">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource SmallPrimary}" Margin="0" Height="30" Content="Restart now" Command="{Binding RemoteMods.RestartNowCommand}"
+                                ToolTip="Players are dropped and can rejoin" />
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Small}" Height="30" Margin="0,0,8,0" Content="Restart when empty" Command="{Binding RemoteMods.RestartWhenEmptyCommand}"
+                                ToolTip="The server's game restarts the next time nobody is on" />
+                        <TextBlock VerticalAlignment="Center" FontSize="12.5" Foreground="{StaticResource Text}" TextWrapping="Wrap" Margin="0,0,12,0"
+                                   Text="The name, player limit or tick rate you saved are used once the server's game restarts." />
+                    </DockPanel>
+                </Border>
+            </StackPanel>
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                 <views:ServerOptionsView DataContext="{Binding LiveOptions}" Margin="0,0,8,0" />
             </ScrollViewer>
         </Grid>
+
+        <!-- Mods tab: a server elsewhere's mods next to this PC's -->
+        <views:RemoteModsView Grid.Row="3" DataContext="{Binding RemoteMods}"
+                              Visibility="{Binding DataContext.Tab, RelativeSource={RelativeSource AncestorType=views:ServerControlView}, Converter={StaticResource Show}, ConverterParameter=Mods}" />
     </Grid>
 </UserControl>

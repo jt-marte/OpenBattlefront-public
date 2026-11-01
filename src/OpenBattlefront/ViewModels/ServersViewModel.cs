@@ -7,7 +7,7 @@ namespace OpenBattlefront.ViewModels;
 public enum ServerScreen { Landing, Options, Control, Remote }
 
 /// <summary>The Server manager page: host a server (options, then the playlist and controls), or
-/// connect to one running elsewhere as its admin (its mods, for now).</summary>
+/// connect to one running elsewhere as its admin (the same playlist and controls, and its mods).</summary>
 public sealed class ServersViewModel : ObservableObject
 {
     private readonly MainViewModel _main;
@@ -18,7 +18,7 @@ public sealed class ServersViewModel : ObservableObject
         _main = main;
         Options = new ServerOptionsViewModel(main, live: false);
         Control = new ServerControlViewModel(main, this);
-        Remote = new RemoteAdminViewModel(main);
+        Remote = new RemoteAdminViewModel(main, this);
         HostCommand = new RelayCommand(() => Screen = Control.IsRunning ? ServerScreen.Control : ServerScreen.Options);
         ConnectCommand = new RelayCommand(() => Screen = ServerScreen.Remote);
         BackCommand = new RelayCommand(GoBack);
@@ -42,6 +42,7 @@ public sealed class ServersViewModel : ObservableObject
             if (!Set(ref _screen, value)) return;
             if (value == ServerScreen.Control) Control.Refresh();
             if (value == ServerScreen.Options) Options.Refresh();
+            if (value == ServerScreen.Remote && Remote.IsConnected) Remote.Control.Refresh();
         }
     }
 
@@ -66,17 +67,26 @@ public sealed class ServersViewModel : ObservableObject
 }
 
 /// <summary>The host settings, on the options screen and (game options only, applied from the
-/// next map) on the running server's Options tab.</summary>
+/// next map) on the running server's Options tab; for a server elsewhere, its own settings, with
+/// the name and limits that apply when its game restarts.</summary>
 public sealed class ServerOptionsViewModel : ObservableObject
 {
     private readonly MainViewModel _main;
+    private readonly ServerControlViewModel? _owner;
+    private readonly Func<ServerProfile> _profile;
     private bool _showAdminPassword;
     private bool _isDirty;
     private bool _serverLocked;
+    private bool _restartSettingsChanged;
 
-    public ServerOptionsViewModel(MainViewModel main, bool live)
+    /// <param name="owner">The control screen these options belong to; null for the host's
+    /// options screen (it goes to the hosted one).</param>
+    /// <param name="profile">The settings shown: the hosted server's (launcher.json) unless given.</param>
+    public ServerOptionsViewModel(MainViewModel main, bool live, ServerControlViewModel? owner = null, Func<ServerProfile>? profile = null)
     {
         _main = main;
+        _owner = owner;
+        _profile = profile ?? (() => main.Setup.State.Server);
         IsLive = live;
         ToggleAdminPasswordCommand = new RelayCommand(() => ShowAdminPassword = !ShowAdminPassword);
         CopyAdminPasswordCommand = new RelayCommand(() =>
@@ -95,10 +105,24 @@ public sealed class ServerOptionsViewModel : ObservableObject
         }, () => !ServerLocked);
     }
 
-    private ServerProfile Profile => _main.Setup.State.Server;
+    private ServerProfile Profile => _profile();
 
     /// <summary>The running server's Options tab: changes wait for "Apply options".</summary>
     public bool IsLive { get; }
+
+    /// <summary>A server elsewhere (Connect to server as admin), not the one this launcher hosts.</summary>
+    public bool IsRemote => _owner?.IsRemote == true;
+
+    /// <summary>Its name and limits: shown on its Options tab, editable when its service keeps them.</summary>
+    public bool ShowRemoteServer => IsLive && IsRemote;
+    public bool RemoteServerEditable => _owner?.KeepsSettings == true;
+
+    public string RemoteServerNote => RemoteServerEditable
+        ? "These three apply when the server's game restarts."
+        : "This server keeps no settings from here: change these where it's started.";
+
+    /// <summary>The name, player limit or tick rate changed since they were last sent.</summary>
+    public bool RestartSettingsChanged { get => _restartSettingsChanged; set => Set(ref _restartSettingsChanged, value); }
 
     /// <summary>Settings fixed while the server runs (name, port, tick rate…).</summary>
     public bool ServerLocked
@@ -124,12 +148,16 @@ public sealed class ServerOptionsViewModel : ObservableObject
         foreach (var property in GetType().GetProperties()) Raise(property.Name);
     }
 
-    private void Changed(string name, bool gameOption = false)
+    /// <param name="restartSetting">The name, player limit or tick rate of a server elsewhere,
+    /// sent with the options and used when its game restarts.</param>
+    private void Changed(string name, bool gameOption = false, bool restartSetting = false)
     {
         Raise(name);
-        _main.Setup.Save();
-        if (gameOption && IsLive) IsDirty = true;
-        if (gameOption) _main.Servers?.Control.OptionsChanged(this);
+        if (!IsRemote) _main.Setup.Save();
+        restartSetting &= IsLive && IsRemote;
+        if ((gameOption || restartSetting) && IsLive) IsDirty = true;
+        if (restartSetting) RestartSettingsChanged = true;
+        if (gameOption || restartSetting) (_owner ?? _main.Servers?.Control)?.OptionsChanged(this);
     }
 
     // Server
@@ -141,7 +169,7 @@ public sealed class ServerOptionsViewModel : ObservableObject
         {
             Profile.Name = value;
             Profile.Normalize();
-            Changed(nameof(Name));
+            Changed(nameof(Name), restartSetting: true);
         }
     }
 
@@ -173,7 +201,7 @@ public sealed class ServerOptionsViewModel : ObservableObject
         set
         {
             Profile.MaxPlayers = Math.Clamp(value, 2, 64);
-            Changed(nameof(MaxPlayers));
+            Changed(nameof(MaxPlayers), restartSetting: true);
         }
     }
 
@@ -183,9 +211,9 @@ public sealed class ServerOptionsViewModel : ObservableObject
         get => Profile.TickRate.ToString();
         set
         {
-            if (!int.TryParse(value, out int rate) || !ServerProfile.TickRates.Contains(rate)) return;
+            if (!int.TryParse(value, out int rate) || !ServerProfile.TickRates.Contains(rate) || rate == Profile.TickRate) return;
             Profile.TickRate = rate;
-            Changed(nameof(Tick));
+            Changed(nameof(Tick), restartSetting: true);
         }
     }
 

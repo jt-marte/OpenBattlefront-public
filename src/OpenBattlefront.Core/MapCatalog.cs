@@ -213,11 +213,25 @@ public sealed class MapCatalogStore
     {
         try
         {
+            return TryReadCached() is { } json ? MapCatalog.Parse(json) : null;
+        }
+        catch (InvalidDataException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The cached list as the game wrote it, when it still matches; otherwise null. A
+    /// hosting launcher serves it as GET /missions.json.</summary>
+    public string? TryReadCached()
+    {
+        try
+        {
             if (!File.Exists(CacheFile) || !File.Exists(KeyFile)) return null;
             if (File.ReadAllText(KeyFile).Trim() != ComputeKey()) return null;
-            return MapCatalog.Parse(File.ReadAllText(CacheFile));
+            return File.ReadAllText(CacheFile);
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             return null;
         }

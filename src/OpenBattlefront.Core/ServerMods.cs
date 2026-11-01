@@ -48,6 +48,9 @@ public sealed partial class ServerModsManifest
     public List<ServerModFolder> Folders { get; set; } = new();
     public List<PendingModChange>? Pending { get; set; }
 
+    /// <summary>The server keeps what an admin applies for its next start (/admin/settings; admins only).</summary>
+    public bool Settings { get; set; }
+
     internal static readonly JsonSerializerOptions Options = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

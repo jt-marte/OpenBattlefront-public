@@ -55,6 +55,9 @@ public class ProtocolParityTests
         yield return new("POST", "/upload/NEW/begin", Join, new { files = Array.Empty<object>() });
         // The texts differ on purpose: one says MOD_UPLOADS=0, the other that it's a launcher's server
         yield return new("POST", "/upload/NEW/begin", Admin, new { files = Array.Empty<object>() }, StatusOnly: true);
+        // Neither has a map list: no game wrote one
+        yield return new("GET", "/missions.json");
+        yield return new("GET", "/missions.json", null);
         for (int i = 0; i < 5; i++) yield return new("GET", "/mods.json", "guess");
         yield return new("GET", "/mods.json", Admin);
     }
@@ -139,7 +142,9 @@ public class ProtocolParityTests
         return RawHttp.Send(port, step.Method, step.Target.Replace("{token}", token), step.Password, json, step.Headers);
     }
 
-    /// <summary>JSON with sorted keys, so key order doesn't count.</summary>
+    /// <summary>JSON with sorted keys, so key order doesn't count. The admin's mods.json says
+    /// "settings" only where they differ on purpose: the Docker server keeps what an admin
+    /// applies, a hosting launcher keeps its settings on its own PC.</summary>
     private static string Normal(byte[] body)
     {
         static JsonNode? Sort(JsonNode? node) => node switch
@@ -148,7 +153,9 @@ public class ProtocolParityTests
             JsonArray a => new JsonArray(a.Select(e => Sort(e?.DeepClone())).ToArray()),
             _ => node?.DeepClone(),
         };
-        return Sort(JsonNode.Parse(body))?.ToJsonString() ?? "null";
+        var root = JsonNode.Parse(body);
+        (root as JsonObject)?.Remove("settings");
+        return Sort(root)?.ToJsonString() ?? "null";
     }
 
     private static int FreePort()

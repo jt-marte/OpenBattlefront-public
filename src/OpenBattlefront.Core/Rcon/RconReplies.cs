@@ -121,6 +121,11 @@ public static class RconReplies
         return new RconPage<RotationEntry>(rows, more, total);
     }
 
+    /// <summary>A setting's value, as the game answers "/difficulty" with no value: one line, a
+    /// number. Null for anything else ("command not found", say).</summary>
+    public static int? ParseNumber(IReadOnlyList<string> lines) =>
+        lines.Count == 1 && int.TryParse(lines[0].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) ? value : null;
+
     private static readonly string[] PushPrefixes =
     {
         "game started: ", "game over", "score: ", "removed player ", "added player ", "lobby: ", "match started: ",

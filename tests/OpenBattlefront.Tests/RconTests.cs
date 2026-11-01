@@ -272,6 +272,42 @@ public class RconTests
         await client.EndMatchAsync();
         Assert.Equal(new[] { "/admin /login secret", "/admin /endgame", "/admin /login secret", "/admin /endgame" }, server.Lines);
     }
+
+    [Theory]
+    [InlineData(new[] { "16" }, 16)]
+    [InlineData(new[] { " 3 " }, 3)]
+    [InlineData(new[] { "-1" }, -1)]
+    [InlineData(new[] { "command not found" }, null)]
+    [InlineData(new[] { "1", "2" }, null)]
+    [InlineData(new string[0], null)]
+    public void Reads_a_settings_value(string[] lines, int? expected) =>
+        Assert.Equal(expected, RconReplies.ParseNumber(lines));
+
+    [Fact]
+    public async Task Reads_what_a_server_runs()
+    {
+        using var server = new FakeRconServer();
+        var values = new Dictionary<string, string>
+        {
+            ["/difficulty"] = "4", ["/conaiperteam"] = "8", ["/heroes"] = "0", ["/hrunlock"] = "5", ["/hrunlockvalue"] = "90",
+            ["/conreinforcements"] = "250", ["/playerlimit"] = "24", ["/tps"] = "30", ["/gamename"] = "Friday Night",
+        };
+        server.Handle = command => values.TryGetValue(command, out string? value) ? new[] { value }
+            : command == "/maplist" ? new[] { "#maplist", "m 1 geo1c_con 150 150 cur", "m 2 kas2g_con 0 0 next", "end 2 next=2" }
+            : new[] { "command not found" };
+        await using var client = new RconClient(server.EndPoint) { ReplyTimeout = TimeSpan.FromSeconds(1) };
+        await client.ConnectAsync("secret", CancellationToken.None);
+
+        var profile = await ServerReader.ReadAsync(client);
+        Assert.Equal(("Friday Night", 24, 30), (profile.Name, profile.MaxPlayers, profile.TickRate));
+        Assert.Equal((4, 8, false, ServerProfile.HeroUnlockTimer, 90, 250), (profile.Difficulty, profile.BotsPerTeam, profile.Heroes,
+            profile.HeroUnlock, profile.HeroUnlockValue, profile.ConquestReinforcements));
+        // What the server didn't answer keeps the launcher's default
+        Assert.Equal(new ServerProfile().CtfCaptures, profile.CtfCaptures);
+        Assert.Equal(new[] { "geo1c_con 150 150", "kas2g_con" }, profile.Playlist.Select(e => e.ToArgument()));
+        // Reading only asks: nothing was set
+        Assert.DoesNotContain(server.Lines, l => l.Split(' ').Length > 2 && !l.StartsWith("/admin /login"));
+    }
 }
 
 /// <summary>A server's admin side on loopback: hello, heartbeat, login and canned replies. The

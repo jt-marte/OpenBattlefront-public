@@ -1,5 +1,8 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Windows.Input;
 using OpenBattlefront.Core;
+using OpenBattlefront.Core.Rcon;
 
 namespace OpenBattlefront.ViewModels;
 
@@ -50,8 +53,9 @@ public sealed class LocalModItem
 }
 
 /// <summary>Server manager > Connect to server as admin: a server running elsewhere (the Docker
-/// server), by its address and admin password. Its mods next to this PC's; upload what it lacks,
-/// remove what was uploaded, and restart its game to load the changes.</summary>
+/// server, say), by its address and admin password. Once in, <see cref="Control"/> is the same
+/// playlist and control screen as hosting has, over rcon; this keeps its Mods tab: the server's
+/// mods next to this PC's, uploads, removing uploaded ones, and restarting its game.</summary>
 public sealed class RemoteAdminViewModel : ObservableObject
 {
     public const string Loads = "Loads after a restart";
@@ -71,7 +75,7 @@ public sealed class RemoteAdminViewModel : ObservableObject
     private IReadOnlyList<RemoteModItem> _serverMods = Array.Empty<RemoteModItem>();
     private IReadOnlyList<LocalModItem> _localMods = Array.Empty<LocalModItem>();
 
-    public RemoteAdminViewModel(MainViewModel main)
+    public RemoteAdminViewModel(MainViewModel main, ServersViewModel servers)
     {
         _main = main;
         if (main.Setup.State.RemoteAdmin is { } saved)
@@ -79,101 +83,23 @@ public sealed class RemoteAdminViewModel : ObservableObject
             _address = saved.Address;
             _password = saved.AdminPassword;
         }
+        Control = new ServerControlViewModel(main, servers, this);
         ConnectCommand = new RelayCommand(() => _ = ConnectAsync(), () => !Activity.IsBusy && !string.IsNullOrWhiteSpace(Address) && Password.Length > 0);
-        DisconnectCommand = new RelayCommand(Disconnect);
-        RefreshCommand = new RelayCommand(() => _ = RefreshAsync(), () => IsConnected && !Activity.IsBusy);
-        RestartNowCommand = new RelayCommand(() => _ = RestartAsync(whenEmpty: false), () => IsConnected && !Activity.IsBusy);
-        RestartWhenEmptyCommand = new RelayCommand(() => _ = RestartAsync(whenEmpty: true), () => IsConnected && !Activity.IsBusy && !RestartWaits);
-        CancelRestartCommand = new RelayCommand(() => _ = CancelRestartAsync(), () => IsConnected && !Activity.IsBusy && RestartWaits);
-        StartMatchCommand = new RelayCommand(() => _ = StartMatchAsync(), () => CanStartMatch && !Activity.IsBusy);
-        BackToLobbyCommand = new RelayCommand(() => _ = MatchAsync(c => c.BackToLobbyAsync(default), "The next map waits in the lobby."),
-            () => _status != null && _status.Phase is "warmup" or "playing" or "ended" && !Activity.IsBusy);
-        CancelStartCommand = new RelayCommand(() => _ = MatchAsync(c => c.CancelStartAsync(default), null), () => IsStartLoading);
-        _matchTimer.Tick += (_, _) => _ = RefreshMatchAsync();
+        RefreshCommand = new RelayCommand(() => _ = RefreshAsync(), () => HasMods && !Activity.IsBusy);
+        RestartNowCommand = new RelayCommand(() => _ = RestartAsync(whenEmpty: false), () => HasMods && !Activity.IsBusy);
+        RestartWhenEmptyCommand = new RelayCommand(() => _ = RestartAsync(whenEmpty: true), () => HasMods && !Activity.IsBusy && !RestartWaits);
+        CancelRestartCommand = new RelayCommand(() => _ = CancelRestartAsync(), () => HasMods && !Activity.IsBusy && RestartWaits);
     }
 
-    // The match: the game's phase and the launchers' lobby, read every 3 s while connected
+    /// <summary>The playlist and control screen for the server, once connected.</summary>
+    public ServerControlViewModel Control { get; }
 
-    private readonly System.Windows.Threading.DispatcherTimer _matchTimer = new() { Interval = TimeSpan.FromSeconds(3) };
-    private MatchStatus? _status;
-    private bool _reading;
-    private MapCatalog? _catalog;
-
-    public ICommand StartMatchCommand { get; }
-    public ICommand BackToLobbyCommand { get; }
-    public ICommand CancelStartCommand { get; }
-
-    public bool HasMatch => _status != null;
-    public bool CanStartMatch => _status is { Phase: "lobby", IsLoading: false };
-    public bool IsStartLoading => _status?.IsLoading == true;
-
-    public string MatchText => _status == null ? "" : _status.Phase switch
-    {
-        "lobby" when _status.IsLoading => $"Starting: waiting players' games are opening{(_status.StartIn is { } s ? $" ({s} s)" : "")}",
-        "lobby" => $"In the lobby: {MapTitle(_status.Map)}",
-        "warmup" => $"Warm-up: {MapTitle(_status.Map)}",
-        "playing" => $"Playing: {MapTitle(_status.Map)}",
-        "ended" => "The match is over; the next map is loading",
-        _ => "The server's game isn't answering",
-    };
-
-    public string MatchDetail
-    {
-        get
-        {
-            if (_status == null) return "";
-            int downloading = _status.Lobby.Count(p => p.IsDownloading);
-            return $"{_status.Lobby.Count - downloading} waiting   ·   {downloading} downloading   ·   {_status.Players} in the game";
-        }
-    }
-
-    private string MapTitle(string mission) =>
-        _catalog?.Find(mission) is { } c ? $"{c.MapName} · {c.ModeName}" : mission;
-
-    private async Task RefreshMatchAsync()
-    {
-        if (_client == null || _reading) return;
-        _reading = true;
-        try { ShowMatch(await _client.StatusAsync(default)); }
-        catch (Exception e) when (e is HttpRequestException or ModServiceException or InvalidDataException or TaskCanceledException) { }
-        finally { _reading = false; }
-    }
-
-    internal void ShowMatch(MatchStatus? status)
-    {
-        _status = status;
-        foreach (string name in new[] { nameof(HasMatch), nameof(CanStartMatch), nameof(IsStartLoading), nameof(MatchText), nameof(MatchDetail) })
-            Raise(name);
-        CommandManager.InvalidateRequerySuggested();
-    }
-
-    private async Task StartMatchAsync()
-    {
-        if (_client == null || _status == null) return;
-        var downloading = _status.Lobby.Where(p => p.IsDownloading).Select(p => p.Name).ToList();
-        int waiting = _status.Lobby.Count - downloading.Count;
-        string text = waiting > 0
-            ? $"The game opens for the {waiting} player(s) waiting in their launchers, and the match begins once they're in, or after 60 seconds."
-            : "Nobody waits in a launcher, so the match begins at once.";
-        if (downloading.Count > 0) text += $" Still downloading: {string.Join(", ", downloading)}. They join when their download is done.";
-        if (!await _main.ConfirmAsync("Start the match?", text, "Start match")) return;
-        await MatchAsync(c => c.StartMatchAsync(default), waiting > 0 ? "Starting: the waiting players' games are opening." : "The match is starting.");
-    }
-
-    private async Task MatchAsync(Func<ModUploadClient, Task> action, string? done)
-    {
-        if (_client == null) return;
-        var client = _client;
-        var error = await Activity.RunAsync("Telling the server", (_, _) => action(client));
-        if (error != null) _main.ShowError(error);
-        else if (done != null) _main.ShowNotice(done);
-        await RefreshMatchAsync();
-    }
+    /// <summary>The server has a mod service: its mods, uploads and restarts.</summary>
+    public bool HasMods => _client != null;
 
     public ActivityViewModel Activity => _main.Activity;
 
     public ICommand ConnectCommand { get; }
-    public ICommand DisconnectCommand { get; }
     public ICommand RefreshCommand { get; }
     public ICommand RestartNowCommand { get; }
     public ICommand RestartWhenEmptyCommand { get; }
@@ -221,6 +147,9 @@ public sealed class RemoteAdminViewModel : ObservableObject
         PendingCount > 1 ? $"{PendingCount} changes load when the game restarts." :
         "Mods load when the game starts.";
 
+    /// <summary>Its mod service first (a wrong password stops there; no service means rcon only),
+    /// then the admin login over rcon on the game port, then what it runs: rotation, options,
+    /// name and limits, and what its service keeps for the next start.</summary>
     private async Task ConnectAsync()
     {
         if (!ServerAddress.TryParse(Address, out var server))
@@ -228,32 +157,64 @@ public sealed class RemoteAdminViewModel : ObservableObject
             _main.ShowNotice("That isn't a server address. Type it as address:port, such as 203.0.113.5:3658.", error: true);
             return;
         }
-        var client = new ModUploadClient(_http, server, Password);
+        string password = Password;
+        var client = new ModUploadClient(_http, server, password);
         ServerModsManifest? manifest = null;
-        var error = await Activity.RunAsync($"Connecting to {server}", async (_, ct) => manifest = await client.GetManifestAsync(ct), cancellable: true);
+        RconClient? rcon = null;
+        ServerProfile? profile = null;
+        AdminSettingsReply? settings = null;
+        string title = $"Connecting to {server}";
+        var error = await Activity.RunAsync(title, async (progress, ct) =>
+        {
+            progress.Report(new StepUpdate(title, "Asking its mod service"));
+            try { manifest = await client.GetManifestAsync(ct); }
+            catch (ModServiceException e) when (e.Status == null) { manifest = null; }
+            progress.Report(new StepUpdate(title, "Logging in as admin"));
+            rcon = new RconClient(await ResolveAsync(server, ct));
+            try { await rcon.ConnectAsync(password, ct); }
+            catch (TimeoutException e)
+            {
+                throw new TimeoutException($"{server} didn't answer as admin on UDP {server.Port}. Is the server up, with UDP {server.Port} forwarded to it?", e);
+            }
+            progress.Report(new StepUpdate(title, "Reading its playlist and options"));
+            profile = await ServerReader.ReadAsync(rcon, ct);
+            if (manifest?.Settings == true) settings = await client.GetSettingsAsync(ct);
+        }, cancellable: true);
         if (error != null)
         {
+            if (rcon != null) await rcon.DisposeAsync();
             _main.ShowError(error);
             return;
         }
-        _client = client;
-        _main.Setup.State.RemoteAdmin = new RemoteAdminProfile { Address = server.ToString(), AdminPassword = Password };
+        _client = manifest != null ? client : null;
+        _main.Setup.State.RemoteAdmin = new RemoteAdminProfile { Address = server.ToString(), AdminPassword = password };
         _main.Setup.Save();
         IsConnected = true;
-        _catalog = new MapCatalogStore(_main.Setup.Layout, _main.Setup.State.InstalledVersion).TryLoadCached();
-        await RefreshMatchAsync();
-        _matchTimer.Start();
-        await ShowAsync(manifest!);
+        Raise(nameof(HasMods));
+        ServerName = profile!.Name;
+        await Control.AttachRemoteAsync(server, password, rcon!, _client, manifest?.Settings == true, profile, settings);
+        if (manifest != null) await ShowAsync(manifest);
     }
 
-    private void Disconnect()
+    /// <summary>The game speaks IPv4 only.</summary>
+    private static async Task<IPEndPoint> ResolveAsync(ServerAddress server, CancellationToken ct)
     {
-        _matchTimer.Stop();
-        ShowMatch(null);
+        if (IPAddress.TryParse(server.Host, out var ip)) return new IPEndPoint(ip, server.Port);
+        var found = await Dns.GetHostAddressesAsync(server.Host, ct);
+        var v4 = found.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork)
+                 ?? throw new SocketException((int)SocketError.HostNotFound);
+        return new IPEndPoint(v4, server.Port);
+    }
+
+    /// <summary>The control screen logged out: back to the address and password.</summary>
+    internal void OnDisconnected()
+    {
         _client = null;
         IsConnected = false;
+        Raise(nameof(HasMods));
         ServerMods = Array.Empty<RemoteModItem>();
         LocalMods = Array.Empty<LocalModItem>();
+        CommandManager.InvalidateRequerySuggested();
     }
 
     public async Task RefreshAsync()
@@ -407,11 +368,27 @@ public sealed class RemoteAdminViewModel : ObservableObject
         else RestartWaits = state == "when-empty";
     }
 
-    /// <summary>For screenshots: a server with the included content and an upload waiting.</summary>
-    internal void ShowSample()
+    /// <summary>For screenshots: the control screen on a pretend server, with launchers waiting,
+    /// the included content and an upload waiting. Nothing goes over the network.</summary>
+    internal async Task ShowSampleAsync()
     {
-        _client = new ModUploadClient(_http, new ServerAddress("203.0.113.5", 3658), "sample");
+        var server = new ServerAddress("203.0.113.5", 3658);
+        var catalog = SampleCatalog.Load();
+        var profile = new ServerProfile { Name = "Friday Night Battles", MaxPlayers = 32, Difficulty = 4 };
+        profile.Playlist = new[] { "BS1g_con", "geo1c_con", "kas2g_ctf", "hot1g_hunt", "spa3c_ass" }
+            .Where(catalog.Contains).Select(m => new PlaylistEntry { Mission = m }).ToList();
+        var admin = new FakeServerAdmin(catalog, profile);
+        await admin.ConnectAsync("sample", CancellationToken.None);
         IsConnected = true;
+        Control.UseFakeServer = true;
+        await Control.AttachRemoteAsync(server, "sample", admin, null, keepsSettings: false, profile, null);
+        _client = new ModUploadClient(_http, server, "sample");
+        Raise(nameof(HasMods));
+        Control.ShowSampleLobby(_client, new MatchStatus
+        {
+            Schema = 1, Phase = "lobby", Map = "BS1g_con", Players = 1,
+            Lobby = { new LobbyPlayer("Pat", "waiting", 100), new LobbyPlayer("Cody", "waiting", 100), new LobbyPlayer("Echo", "downloading", 45) },
+        });
         var manifest = new ServerModsManifest
         {
             Schema = 1, Server = "Friday Night Battles", Openswbf2 = "0.2.2", Uploads = true,
@@ -429,11 +406,6 @@ public sealed class RemoteAdminViewModel : ObservableObject
             ["BF1"] = (Sample("BF1", 644_000_000), null),
             ["Endor"] = (Sample("Endor", 48_500_000), null),
             ["Geonosis_Plus"] = (Sample("Geonosis_Plus", 132_000_000), null),
-        });
-        ShowMatch(new MatchStatus
-        {
-            Schema = 1, Phase = "lobby", Map = "BS1g_con", Players = 1,
-            Lobby = { new LobbyPlayer("Pat", "waiting", 100), new LobbyPlayer("Cody", "waiting", 100), new LobbyPlayer("Echo", "downloading", 45) },
         });
     }
 }

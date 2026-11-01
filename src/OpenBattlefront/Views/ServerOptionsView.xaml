@@ -151,6 +151,59 @@
             </Border>
         </StackPanel>
 
+        <!-- A server elsewhere (Connect to server as admin): name and limits apply when its game restarts -->
+        <StackPanel Visibility="{Binding ShowRemoteServer, Converter={StaticResource Vis}}">
+            <TextBlock Text="SERVER" Style="{StaticResource Section}" />
+            <Border Style="{StaticResource Card}" Margin="0,0,0,20" Padding="20,16" IsEnabled="{Binding RemoteServerEditable}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Server name" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="{Binding RemoteServerNote}" Style="{StaticResource RowNote}" />
+                        </StackPanel>
+                        <TextBox Grid.Column="1" Style="{StaticResource Field}" Width="250" MaxLength="31" Text="{Binding Name, UpdateSourceTrigger=LostFocus}" />
+                    </Grid>
+                    <Rectangle Style="{StaticResource Divider}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Max players" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="2 to 64." Style="{StaticResource RowNote}" />
+                        </StackPanel>
+                        <TextBox Grid.Column="1" Style="{StaticResource Number}" Width="56" Text="{Binding MaxPlayers, UpdateSourceTrigger=LostFocus}" />
+                    </Grid>
+                    <Rectangle Style="{StaticResource Divider}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Tick rate" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="Updates per second. 60 suits most games; 120 needs a strong connection." Style="{StaticResource RowNote}" />
+                        </StackPanel>
+                        <Border Grid.Column="1" Style="{StaticResource SegmentBox}">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton Style="{StaticResource Segment}" Content="30" Width="52"
+                                             IsChecked="{Binding Tick, Converter={StaticResource Eq}, ConverterParameter=30}" />
+                                <RadioButton Style="{StaticResource Segment}" Content="60" Width="52"
+                                             IsChecked="{Binding Tick, Converter={StaticResource Eq}, ConverterParameter=60}" />
+                                <RadioButton Style="{StaticResource Segment}" Content="120" Width="52"
+                                             IsChecked="{Binding Tick, Converter={StaticResource Eq}, ConverterParameter=120}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
         <!-- Battle -->
         <TextBlock Text="BATTLE" Style="{StaticResource Section}" />
         <Border Style="{StaticResource Card}" Margin="0,0,0,20" Padding="20,16">

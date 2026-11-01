@@ -185,6 +185,43 @@ public sealed class ModUploadClient
         using var _ = await SendAsync(HttpMethod.Delete, "admin/match", null, ct).ConfigureAwait(false);
     }
 
+    /// <summary>What the server keeps for its next start; null when its service keeps nothing (an
+    /// older one, or a launcher hosting).</summary>
+    public async Task<AdminSettingsReply?> GetSettingsAsync(CancellationToken ct)
+    {
+        using var request = ModService.Request(HttpMethod.Get, Server, "admin/settings", _password);
+        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        if (!response.IsSuccessStatusCode) throw await ModService.ErrorAsync(response, ct).ConfigureAwait(false);
+        return AdminSettingsReply.Parse(await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
+    }
+
+    /// <summary>Keeps these settings for the server's next starts; the ones left null stay as they are.</summary>
+    public async Task<AdminSettingsReply> SaveSettingsAsync(AdminSettings settings, CancellationToken ct)
+    {
+        var body = new StringContent(settings.ToJson(), Encoding.UTF8, "application/json");
+        using var response = await SendAsync(HttpMethod.Put, "admin/settings", body, ct).ConfigureAwait(false);
+        return AdminSettingsReply.Parse(await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
+    }
+
+    /// <summary>Forgets what admins saved: compose.yaml's settings count again from the next start.</summary>
+    public async Task<AdminSettingsReply> ResetSettingsAsync(CancellationToken ct)
+    {
+        using var response = await SendAsync(HttpMethod.Delete, "admin/settings", null, ct).ConfigureAwait(false);
+        return AdminSettingsReply.Parse(await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
+    }
+
+    /// <summary>The maps the server can load, from its own game (mods included); null when it has
+    /// no list.</summary>
+    public async Task<MapCatalog?> GetMissionsAsync(CancellationToken ct)
+    {
+        using var request = ModService.Request(HttpMethod.Get, Server, "missions.json", _password);
+        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        if (!response.IsSuccessStatusCode) throw await ModService.ErrorAsync(response, ct).ConfigureAwait(false);
+        return MapCatalog.Parse(await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false));
+    }
+
     private async Task<string> RestartStateAsync(HttpMethod method, string path, CancellationToken ct)
     {
         using var response = await SendAsync(method, path, null, ct).ConfigureAwait(false);

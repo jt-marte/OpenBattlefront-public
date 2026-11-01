@@ -148,16 +148,26 @@ internal static class Screenshots
         control.Tab = ControlTab.Playlist;
         main.Setup.State.Server.Playlist.Clear();
 
-        // Connect to server as admin: the sign-in, then a server's mods next to this PC's
+        // Connect to server as admin: the sign-in, then the same control screen for a server
+        // elsewhere, with its options and its mods next to this PC's
         servers.Screen = ServerScreen.Landing;
         await Settle(300);
         SaveAs("3-servers-landing.png");
         servers.Screen = ServerScreen.Remote;
         await Settle(300);
         SaveAs("3l-servers-admin-connect.png");
-        servers.Remote.ShowSample();
+        await servers.Remote.ShowSampleAsync();
+        main.DismissNoticeCommand.Execute(null);
+        var remote = servers.Remote.Control;
+        await Settle(600);
+        SaveAs("3n-servers-admin-control.png");
+        remote.Tab = ControlTab.Options;
+        await Settle(300);
+        SaveAs("3o-servers-admin-options.png");
+        remote.Tab = ControlTab.Mods;
         await Settle(300);
         SaveAs("3m-servers-admin-mods.png");
+        remote.Tab = ControlTab.Playlist;
         servers.Screen = ServerScreen.Landing;
     }
 

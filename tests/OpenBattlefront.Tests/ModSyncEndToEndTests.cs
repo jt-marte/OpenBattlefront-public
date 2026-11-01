@@ -25,6 +25,9 @@ public class ModSyncEndToEndTests
         temp.File(@"server\addons\BF1\setup.exe", "MZ");
         temp.File(@"server\addons\AAA-v1.3patch\addme.script", "patch");
         Directory.CreateDirectory(temp.Sub(@"server\config"));
+        // compose.yaml's values, as the entrypoint writes them before each game start
+        temp.File(@"server\config\settings\compose.json",
+            """{"name": "E2E server", "maxPlayers": 32, "tickRate": 60, "maps": [{"mission": "geo1c_con"}], "options": {"difficulty": 3}}""");
 
         int port = FreePort();
         var info = new ProcessStartInfo("python", $"\"{script}\" serve --host 127.0.0.1 --port {port} --addons \"{temp.Sub(@"server\addons")}\" --config \"{temp.Sub(@"server\config")}\"")
@@ -80,6 +83,34 @@ public class ModSyncEndToEndTests
 
             var wrong = await Assert.ThrowsAsync<ModServiceException>(() => new ModUploadClient(http, server, "secret").RestartAsync(false, default));
             Assert.Equal(HttpStatusCode.Forbidden, wrong.Status);
+
+            // The admin screen keeps what it applies on the server: every option the launcher
+            // sends passes the service's checks
+            Assert.True((await admin.GetManifestAsync(default)).Settings);
+            var applied = new ServerProfile { Name = "Friday Night", MaxPlayers = 16, TickRate = 120, Difficulty = 4, HeroUnlock = ServerProfile.HeroUnlockTimer, HeroUnlockValue = 90 };
+            var settings = await admin.SaveSettingsAsync(AdminSettings.ForOptions(applied), default);
+            Assert.Equal(4, settings.Settings.Options!["difficulty"]);
+            Assert.Equal(21, settings.Saved.Count);
+            settings = await admin.SaveSettingsAsync(AdminSettings.ForPlaylist(new[]
+            {
+                new PlaylistEntry { Mission = "kas2g_con", Tickets1 = 150 }, new PlaylistEntry { Mission = "geo1c_con" },
+            }), default);
+            Assert.Equal(new[] { "kas2g_con 150 150", "geo1c_con" },
+                settings.Settings.Maps!.Select(m => new PlaylistEntry { Mission = m.Mission, Tickets1 = m.Tickets1, Tickets2 = m.Tickets2 }.ToArgument()));
+            settings = await admin.SaveSettingsAsync(AdminSettings.ForServer(applied), default);
+            Assert.Equal(("Friday Night", 16, 120), (settings.Settings.Name, settings.Settings.MaxPlayers, settings.Settings.TickRate));
+            Assert.Contains("maps", (await admin.GetSettingsAsync(default))!.Saved);
+            var refused = await Assert.ThrowsAsync<ModServiceException>(() => admin.SaveSettingsAsync(new AdminSettings { MaxPlayers = 99 }, default));
+            Assert.Equal(HttpStatusCode.BadRequest, refused.Status);
+            Assert.Equal(HttpStatusCode.Forbidden,
+                (await Assert.ThrowsAsync<ModServiceException>(() => new ModUploadClient(http, server, "secret").GetSettingsAsync(default))).Status);
+            Assert.False((await admin.ResetSettingsAsync(default)).HasSaved);
+
+            // The server's own map list, once its game wrote it
+            Assert.Null(await admin.GetMissionsAsync(default));
+            temp.File(@"server\config\settings\missions.json",
+                """{"format": 1, "maps": [{"code": "geo1", "name": "Geonosis", "eras": ["c"], "modes": [{"id": "con", "name": "Conquest", "missions": {"c": "geo1c_con"}}]}]}""");
+            Assert.True((await admin.GetMissionsAsync(default))!.Contains("geo1c_con"));
         }
         finally
         {

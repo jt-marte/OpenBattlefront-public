@@ -29,6 +29,8 @@ public sealed class FakeServerAdmin : IServerAdmin
         new(5, 2, true, 27, 6, 4, 45, "Wedge"),
         new(6, 0, false, 0, 0, 0, 120, "NewRecruit"),
     };
+    private readonly Dictionary<string, int> _options;
+    private readonly string _name;
     private int _current;
     private string _running;
     private ServerPhase _phase = ServerPhase.Lobby;
@@ -41,6 +43,10 @@ public sealed class FakeServerAdmin : IServerAdmin
         _rotation = profile.Playlist.Select(e => e.Clone()).ToList();
         if (_rotation.Count == 0) _rotation.Add(new PlaylistEntry { Mission = catalog.Maps[0].Missions[0].Mission });
         _running = _rotation[0].Mission;
+        _options = profile.Options();
+        _options["playerlimit"] = profile.MaxPlayers;
+        _options["tps"] = profile.TickRate;
+        _name = profile.Name;
     }
 
     public event Action<string>? Pushed;
@@ -179,7 +185,18 @@ public sealed class FakeServerAdmin : IServerAdmin
     }
 
     public Task SayAsync(string text, CancellationToken ct = default) => Task.CompletedTask;
-    public Task SetOptionAsync(string name, int value, CancellationToken ct = default) => Task.CompletedTask;
+    public Task SetOptionAsync(string name, int value, CancellationToken ct = default)
+    {
+        _options[name] = value;
+        return Task.CompletedTask;
+    }
+
+    public Task<int?> ReadOptionAsync(string name, CancellationToken ct = default) =>
+        Task.FromResult<int?>(_options.TryGetValue(name, out int value) ? value : null);
+
+    public Task<string?> ReadTextAsync(string name, CancellationToken ct = default) =>
+        Task.FromResult<string?>(name == "gamename" ? _name : null);
+
     public Task ShutdownAsync(CancellationToken ct = default) => Task.CompletedTask;
 
     public ValueTask DisposeAsync()

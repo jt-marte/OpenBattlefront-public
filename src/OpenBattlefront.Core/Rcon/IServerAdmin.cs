@@ -26,5 +26,12 @@ public interface IServerAdmin : IAsyncDisposable
     Task SwapAsync(int slot, CancellationToken ct = default);
     Task SayAsync(string text, CancellationToken ct = default);
     Task SetOptionAsync(string name, int value, CancellationToken ct = default);
+
+    /// <summary>An option's value now (/name with no value answers with its number), or null.</summary>
+    Task<int?> ReadOptionAsync(string name, CancellationToken ct = default);
+
+    /// <summary>A text setting such as /gamename, or null.</summary>
+    Task<string?> ReadTextAsync(string name, CancellationToken ct = default);
+
     Task ShutdownAsync(CancellationToken ct = default);
 }

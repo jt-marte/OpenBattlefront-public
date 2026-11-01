@@ -153,6 +153,17 @@ public sealed class RconClient : IServerAdmin
 
     public Task SetOptionAsync(string name, int value, CancellationToken ct = default) => CommandAsync($"/{name} {value}", ct);
 
+    public async Task<int?> ReadOptionAsync(string name, CancellationToken ct = default) =>
+        RconReplies.ParseNumber(await ReadAsync(name, ct));
+
+    public async Task<string?> ReadTextAsync(string name, CancellationToken ct = default) =>
+        (await ReadAsync(name, ct)).FirstOrDefault()?.Trim();
+
+    /// <summary>A setting with no value given: the game answers with what it is. Reading changes
+    /// nothing, so it can be asked again.</summary>
+    private Task<IReadOnlyList<string>> ReadAsync(string name, CancellationToken ct) =>
+        SendRawAsync("/" + name, r => !IsLateAnswer(r) && !RconReplies.LooksLikePush(r.Lines), retry: true, ct);
+
     public Task ShutdownAsync(CancellationToken ct = default) => CommandAsync("/shutdown", ct);
 
     /// <summary>A retail command. Its reply is free text, so take the first group that isn't a

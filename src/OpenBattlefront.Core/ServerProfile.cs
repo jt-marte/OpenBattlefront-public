@@ -144,6 +144,45 @@ public sealed class ServerProfile
     /// <summary>ServerSettings.cfg: one admin command per line, as the engine reads it at start.</summary>
     public IReadOnlyList<string> SettingsLines() => OptionCommands().Select(o => $"/{o.Command} {o.Value}").ToList();
 
+    /// <summary>The game options by command, each once (the four bot counts are one setting here).</summary>
+    public Dictionary<string, int> Options()
+    {
+        var options = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (command, value) in OptionCommands()) options.TryAdd(command, value);
+        return options;
+    }
+
+    /// <summary>Takes one game option back from its admin command (the other way round from
+    /// <see cref="OptionCommands"/>); false for one the launcher doesn't show. Call
+    /// <see cref="Normalize"/> after.</summary>
+    public bool SetOption(string command, int value)
+    {
+        bool On() => value != 0;
+        switch (command.ToLowerInvariant())
+        {
+            case "difficulty": Difficulty = value; break;
+            case "conaiperteam": BotsPerTeam = value; break;
+            case "teamdamage": TeamDamage = On(); break;
+            case "shownames": ShowNames = On(); break;
+            case "autoassignteams": AutoAssignTeams = On(); break;
+            case "awards": Awards = On(); break;
+            case "heroes": Heroes = On(); break;
+            case "hrunlock": HeroUnlock = value; break;
+            case "hrunlockvalue": HeroUnlockValue = value; break;
+            case "hrplayer": HeroPlayer = value; break;
+            case "aiheroes": AiHeroes = On(); break;
+            case "conreinforcements": ConquestReinforcements = value; break;
+            case "contimelimit": ConquestTimeLimit = value; break;
+            case "ctfscorelimit": CtfCaptures = value; break;
+            case "ctftimelimit": CtfTimeLimit = value; break;
+            case "huntimelimit": HuntTimeLimit = value; break;
+            case "huntscorelimit": HuntScore = value; break;
+            case "assscorelimit": AssaultScore = value; break;
+            default: return false;
+        }
+        return true;
+    }
+
     public ServerProfile Clone()
     {
         var copy = (ServerProfile)MemberwiseClone();

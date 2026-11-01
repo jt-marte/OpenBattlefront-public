@@ -8,6 +8,45 @@ public class ServerProfileTests
     private static ServerProfile Profile(params PlaylistEntry[] playlist) => new() { AdminPassword = "Adm1nPassw0rd", Playlist = playlist.ToList() };
 
     [Fact]
+    public void Each_option_comes_back_from_its_admin_command()
+    {
+        var sent = new ServerProfile
+        {
+            Difficulty = 4, BotsPerTeam = 7, TeamDamage = false, ShowNames = false, AutoAssignTeams = false, Awards = false,
+            Heroes = false, HeroUnlock = ServerProfile.HeroUnlockTimer, HeroUnlockValue = 45, HeroPlayer = ServerProfile.HeroPlayerRandom,
+            AiHeroes = false, ConquestReinforcements = 300, ConquestTimeLimit = 20, CtfCaptures = 9, CtfTimeLimit = 15,
+            HuntTimeLimit = 10, HuntScore = 120, AssaultScore = 250,
+        };
+        var read = new ServerProfile();
+        foreach (var (command, value) in sent.Options()) read.SetOption(command, value);
+        read.Normalize();
+        Assert.Equal(sent.Options(), read.Options());
+        Assert.Equal(21, sent.Options().Count);
+        Assert.False(read.SetOption("bots", 3));
+    }
+
+    [Fact]
+    public void Admin_settings_send_only_what_is_set()
+    {
+        var playlist = new[] { new PlaylistEntry { Mission = "geo1c_con", Tickets1 = 150 }, new PlaylistEntry { Mission = "kas2g_con" } };
+        Assert.Equal("""{"maps":[{"mission":"geo1c_con","tickets1":150,"tickets2":150},{"mission":"kas2g_con"}]}""",
+            AdminSettings.ForPlaylist(playlist).ToJson());
+        Assert.Equal("""{"name":"Box","maxPlayers":16,"tickRate":120}""",
+            AdminSettings.ForServer(new ServerProfile { Name = "Box", MaxPlayers = 16, TickRate = 120 }).ToJson());
+
+        var reply = AdminSettingsReply.Parse("""
+            {"schema": 1, "settings": {"name": "Box", "maxPlayers": 16, "tickRate": 30, "maps": [{"mission": "nab2c_con", "tickets1": 5, "tickets2": 5}],
+             "options": {"difficulty": 2, "conaiperteam": 4, "bots": 9}}, "saved": ["maps", "options.difficulty"], "compose": {}, "restartNeeded": true}
+            """);
+        Assert.True(reply.RestartNeeded && reply.HasSaved);
+        var profile = new ServerProfile();
+        reply.Settings.ApplyTo(profile);
+        Assert.Equal(("Box", 16, 30, 2, 4), (profile.Name, profile.MaxPlayers, profile.TickRate, profile.Difficulty, profile.BotsPerTeam));
+        Assert.Equal("nab2c_con 5 5", profile.Playlist.Single().ToArgument());
+        Assert.Throws<InvalidDataException>(() => AdminSettingsReply.Parse("""{"schema": 2}"""));
+    }
+
+    [Fact]
     public void Settings_file_has_one_admin_command_per_line()
     {
         var profile = Profile();

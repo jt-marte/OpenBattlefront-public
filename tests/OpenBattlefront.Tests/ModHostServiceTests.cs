@@ -61,7 +61,7 @@ internal sealed class HostFixture : IAsyncDisposable
         Temp.File(@"addons\NoAddme\x.lvl", "x");
     }
 
-    public ModHostService Start(string join = Join, bool game = true)
+    public ModHostService Start(string join = Join, bool game = true, Func<string?>? missions = null)
     {
         Service = new ModHostService(new ModHostOptions
         {
@@ -73,6 +73,7 @@ internal sealed class HostFixture : IAsyncDisposable
             AdminPassword = Admin,
             Bind = IPAddress.Loopback,
             Port = 0,
+            Missions = missions,
         }, game ? Game : null, () => Now);
         Service.Start(watch: false);
         return Service;
@@ -139,6 +140,22 @@ public class ModHostServiceTests
         Assert.Equal(200, Get(f, "/mods.json", null).Status);
         Assert.Equal(200, Get(f, "/mods/BF1/addme.script", null).Status);
         Assert.Equal(401, Get(f, "/mods.json", "wrong").Status);
+    }
+
+    [Fact]
+    public async Task Serves_the_hosted_games_map_list()
+    {
+        await using var f = new HostFixture();
+        string? listing = null;
+        f.Start(missions: () => listing);
+        var none = Get(f, "/missions.json");
+        Assert.Equal((404, "the server has no map list yet"), (none.Status, none.Error));
+        listing = """{"format": 1, "maps": []}""";
+        var reply = Get(f, "/missions.json");
+        Assert.Equal((200, listing), (reply.Status, reply.Text));
+        Assert.Equal(401, Get(f, "/missions.json", null).Status);
+        // Nothing to keep on a hosted server: its settings are this PC's
+        Assert.Equal(404, Get(f, "/admin/settings", Admin).Status);
     }
 
     [Fact]

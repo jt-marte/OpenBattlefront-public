@@ -88,6 +88,7 @@ public sealed class PlaylistItemViewModel : ObservableObject
         IsUnknown = catalogLoaded && choice == null;
         if (choice != null) entry.Title = choice.Title;
         RemoveCommand = new RelayCommand(() => owner.Remove(this));
+        PlayNowCommand = new RelayCommand(() => _ = owner.PlayNowAsync(this), () => owner.CanPlayNow(this));
     }
 
     public PlaylistEntry Entry { get; }
@@ -129,6 +130,9 @@ public sealed class PlaylistItemViewModel : ObservableObject
     }
 
     public ICommand RemoveCommand { get; }
+
+    /// <summary>Changes the server to this map now (/changemap).</summary>
+    public ICommand PlayNowCommand { get; }
 }
 
 public sealed class PlayerRowViewModel

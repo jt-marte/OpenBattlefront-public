@@ -25,6 +25,10 @@ public sealed class ModHostOptions
 
     /// <summary>TCP, the game's port number; 0 picks one (tests).</summary>
     public int Port { get; init; }
+
+    /// <summary>The hosted game's map list (the game's -listmissions, as MapCatalogStore keeps
+    /// it) for GET /missions.json, or null when there's none.</summary>
+    public Func<string?>? Missions { get; init; }
 }
 
 /// <summary>
@@ -305,6 +309,12 @@ public sealed class ModHostService : IAsyncDisposable
             {
                 Who(request, address, admin: true);
                 return Json(200, await MatchAsync(request, ct).ConfigureAwait(false));
+            }
+            if (parts.SequenceEqual(new[] { "missions.json" }) && get)
+            {
+                Who(request, address);
+                string json = _options.Missions?.Invoke() ?? throw new ModHostRefused(404, "the server has no map list yet");
+                return new Reply { Body = Encoding.UTF8.GetBytes(json), Headers = { ("Cache-Control", "no-store") } };
             }
             throw new ModHostRefused(404, "not found");
         }
