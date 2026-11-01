@@ -95,17 +95,42 @@ public class GameValidatorTests
     }
 
     [Fact]
-    public void A_GOG_copy_is_named_as_such()
+    public void A_GOG_copy_is_taken_like_Steam_s()
     {
-        var checks = StockLvls.Names.Select(n => new LvlCheck(n, n + ".lvl",
-            StockLvls.Gog.TryGetValue(n, out var gog) ? gog : StockLvls.Known[n][0], !StockLvls.Gog.ContainsKey(n))).ToList();
-        var result = new ValidationResult("x", checks);
-        Assert.True(result.IsGog);
-        Assert.Equal(StockLvls.GogNotYet, GameSetup.Explain(result));
-
-        checks[0] = checks[0] with { Sha256 = "1.3 patch" };
-        Assert.False(new ValidationResult("x", checks).IsGog);
+        // GOG v1.1 (installer build 10935); its mission.lvl is Steam's
+        var gog = new Dictionary<string, string>
+        {
+            ["shell"] = "7cde6a5fcb121653d4f647ce7a2b158305e88bad01bf55d14cfabcd4d0b3d00b",
+            ["common"] = "7a6c9a52a76e5ba7e30ac7a9b5d3e2a1fbbd0f4567c4684361b138c0ce68b2f1",
+            ["ingame"] = "338b9d1db70383b2eeed26b600b987f8e0bb6d9a4151c79eef6848edabecdbdd",
+            ["mission"] = "f1000a76ec8d642b5e531833a6d53b9b5f37dbc0a3bbb4bfe605710fc66da10b",
+        };
+        foreach (var (name, hash) in gog)
+            Assert.Contains(hash, StockLvls.Known[name]);
         Assert.True(StockLvls.IsGogInstaller(@"C:\Desktop\setup_star_wars_-_battlefront_2_1.1_(10935).exe"));
+        Assert.False(StockLvls.IsGogInstaller(@"C:\GOG Games\Star Wars - Battlefront 2\GameData\BattlefrontII.exe"));
+    }
+
+    [Fact]
+    public async Task A_build_that_cannot_take_the_stock_lvls_says_to_update()
+    {
+        using var temp = new TempDir();
+        var layout = new InstallLayout(temp.Sub("L"));
+        temp.File(@"L\Stock\data\_lvl_pc\shell.lvl", "gog shell");
+        temp.File(@"L\Stock\data\_lvl_pc\common.lvl", "common");
+        var manifest = new BuildManifest
+        {
+            Version = "0.2.4",
+            StockLvls = new() { ["shell"] = new[] { TempDir.Sha("steam shell") }, ["common"] = new[] { TempDir.Sha("common") } },
+        };
+        Assert.Equal(new[] { "shell.lvl" }, LvlBuilder.Unsupported(layout, manifest));
+        var e = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            LvlBuilder.BuildAsync(layout, temp.Sub("no build"), manifest, CancellationToken.None));
+        Assert.Contains("0.2.4", e.Message);
+        Assert.Contains("Update OpenSWBF2", e.Message);
+
+        manifest.StockLvls["shell"] = new[] { TempDir.Sha("steam shell"), TempDir.Sha("gog shell").ToUpperInvariant() };
+        Assert.Empty(LvlBuilder.Unsupported(layout, manifest));
     }
 
     [Fact]

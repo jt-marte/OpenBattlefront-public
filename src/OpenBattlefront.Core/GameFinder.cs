@@ -14,7 +14,7 @@ public sealed class GameFinder
     public static readonly string[] FolderNames =
     {
         "Star Wars Battlefront II Classic", "Star Wars Battlefront II", "Star Wars - Battlefront II",
-        "STAR WARS Battlefront II", "Battlefront II",
+        "Star Wars - Battlefront 2", "STAR WARS Battlefront II", "Battlefront II",
     };
 
     /// <summary>Folders the drive search never goes into: Windows' own, and ones too big to be
