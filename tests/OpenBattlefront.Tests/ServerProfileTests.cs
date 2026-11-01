@@ -12,7 +12,7 @@ public class ServerProfileTests
     {
         var sent = new ServerProfile
         {
-            Difficulty = 4, BotsPerTeam = 7, TeamDamage = false, ShowNames = false, AutoAssignTeams = false, Awards = false,
+            Difficulty = 4, ConquestBots = 7, CtfBots = 12, AssaultBots = 40, TeamDamage = false, ShowNames = false, AutoAssignTeams = false, Awards = false,
             Heroes = false, HeroUnlock = ServerProfile.HeroUnlockTimer, HeroUnlockValue = 45, HeroPlayer = ServerProfile.HeroPlayerRandom,
             AiHeroes = false, ConquestReinforcements = 300, ConquestTimeLimit = 20, CtfCaptures = 9, CtfTimeLimit = 15,
             HuntTimeLimit = 10, HuntScore = 120, AssaultScore = 250,
@@ -43,7 +43,7 @@ public class ServerProfileTests
         Assert.Equal("OpenSWBF2 Server", reply.Defaults.Name);
         var profile = new ServerProfile { JoinPassword = "old" };
         reply.Settings.ApplyTo(profile);
-        Assert.Equal(("Box", "", 16, 30, 2, 4), (profile.Name, profile.JoinPassword, profile.MaxPlayers, profile.TickRate, profile.Difficulty, profile.BotsPerTeam));
+        Assert.Equal(("Box", "", 16, 30, 2, 4), (profile.Name, profile.JoinPassword, profile.MaxPlayers, profile.TickRate, profile.Difficulty, profile.ConquestBots));
         Assert.Equal("nab2c_con 5 5", profile.Playlist.Single().ToArgument());
         Assert.Throws<InvalidDataException>(() => AdminSettingsReply.Parse("""{"schema": 2}"""));
     }
@@ -52,7 +52,8 @@ public class ServerProfileTests
     public void Settings_file_has_one_admin_command_per_line()
     {
         var profile = Profile();
-        profile.BotsPerTeam = 20;
+        profile.ConquestBots = 20;
+        profile.CtfBots = 12;
         profile.Difficulty = 4;
         profile.TeamDamage = false;
         profile.HeroUnlock = ServerProfile.HeroUnlockTimer;
@@ -64,7 +65,10 @@ public class ServerProfileTests
         Assert.All(lines, l => Assert.Matches(@"^/[a-z]+ -?\d+$", l));
         Assert.Contains("/difficulty 4", lines);
         Assert.Contains("/conaiperteam 20", lines);
-        Assert.Contains("/ctfaiperteam 20", lines);
+        Assert.Contains("/ctfaiperteam 12", lines);
+        // Assault keeps the recommended team size, and elimination follows it
+        Assert.Contains("/assaiperteam 32", lines);
+        Assert.Contains("/eliaiperteam 32", lines);
         Assert.Contains("/teamdamage 0", lines);
         Assert.Contains("/hrunlock 5", lines);
         Assert.Contains("/hrunlockvalue 90", lines);
@@ -100,7 +104,8 @@ public class ServerProfileTests
             JoinPassword = "pa ss\"word",
             AdminPassword = "has spaces",
             MaxPlayers = 100,
-            BotsPerTeam = 40,
+            ConquestBots = 99,
+            CtfBots = -3,
             Difficulty = 1,
             Port = 80,
             HeroUnlockValue = 0,
@@ -117,7 +122,7 @@ public class ServerProfileTests
         Assert.Equal("password", profile.JoinPassword);
         Assert.True(ServerProfile.IsValidAdminPassword(profile.AdminPassword));
         Assert.Equal(64, profile.MaxPlayers);
-        Assert.Equal(32, profile.BotsPerTeam);
+        Assert.Equal((64, 0, 32), (profile.ConquestBots, profile.CtfBots, profile.AssaultBots));
         Assert.Equal(2, profile.Difficulty);
         Assert.Equal(1024, profile.Port);
         Assert.Equal(1, profile.HeroUnlockValue);
@@ -173,6 +178,10 @@ public class ServerProfileTests
         Assert.Contains("/gamename \"Friday, night\"", args);
         Assert.Contains("/adminpw Adm1nPassw0rd ", args);
         Assert.Contains("/playerlimit 24 ", args);
+        // the most bots any mode has: the recommended 32 keeps players before 0.2.6 welcome
+        Assert.Contains("/bots 32 ", args);
+        profile.CtfBots = 48;
+        Assert.Contains("/bots 48 ", ServerHost.BuildArguments(profile, layout, out _));
         Assert.Contains("-port 3700 ", args);
         Assert.Contains("-logcmds \"all Warning, LogNet Inform, LogCore Inform\"", args);
         Assert.EndsWith($"-log \"{Path.Combine(layout.Logs, "server.log")}\"", args);

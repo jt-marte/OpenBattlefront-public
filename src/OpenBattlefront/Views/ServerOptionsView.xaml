@@ -41,6 +41,54 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Margin" Value="8,0,0,0" />
         </Style>
+        <!-- A thin track filled in the accent up to a round thumb: bots a team, 0 to 64 -->
+        <Style x:Key="TrackPart" TargetType="RepeatButton">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="IsTabStop" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border Height="4" CornerRadius="2" Background="{TemplateBinding Background}" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="BotSlider" TargetType="Slider">
+            <Setter Property="Width" Value="190" />
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="64" />
+            <Setter Property="SmallChange" Value="1" />
+            <Setter Property="LargeChange" Value="8" />
+            <Setter Property="IsSnapToTickEnabled" Value="True" />
+            <Setter Property="TickFrequency" Value="1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid Height="22" Background="Transparent">
+                            <Border Height="4" CornerRadius="2" Background="{StaticResource Line}" VerticalAlignment="Center" />
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Style="{StaticResource TrackPart}" Background="{StaticResource Accent}" Command="Slider.DecreaseLarge" />
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Style="{StaticResource TrackPart}" Background="Transparent" Command="Slider.IncreaseLarge" />
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Width="14" Height="14">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Ellipse Fill="{StaticResource Text}" Stroke="{StaticResource Accent}" StrokeThickness="2" />
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <StackPanel>
@@ -232,17 +280,51 @@
         <TextBlock Text="BATTLE" Style="{StaticResource Section}" />
         <Border Style="{StaticResource Card}" Margin="0,0,0,20" Padding="20,16">
             <StackPanel>
+                <TextBlock Text="Bots fill in around the players: a team holds up to 64 soldiers, so a full server of 64 players still has room for 64 bots. More than 32 a team takes a server restart, and players on OpenSWBF2 0.2.6 or newer." Style="{StaticResource RowNote}" Margin="0,0,0,12" />
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="Bots" Style="{StaticResource RowTitle}" />
-                        <TextBlock Text="Per team, 0 to 32. They fill in around the players." Style="{StaticResource RowNote}" />
+                        <TextBlock Text="Conquest bots" Style="{StaticResource RowTitle}" />
+                        <TextBlock Text="{Binding ConquestBotsNote}" Style="{StaticResource RowNote}" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBox Style="{StaticResource Number}" Width="56" Text="{Binding BotsPerTeam, UpdateSourceTrigger=LostFocus}" />
+                        <Slider Style="{StaticResource BotSlider}" Value="{Binding ConquestBots}" />
+                        <TextBox Style="{StaticResource Number}" Width="48" Margin="12,0,0,0" Text="{Binding ConquestBots, UpdateSourceTrigger=LostFocus}" />
+                        <TextBlock Text="per team" Style="{StaticResource Unit}" />
+                    </StackPanel>
+                </Grid>
+                <Rectangle Style="{StaticResource Divider}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Capture the Flag bots" Style="{StaticResource RowTitle}" />
+                        <TextBlock Text="{Binding CtfBotsNote}" Style="{StaticResource RowNote}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Slider Style="{StaticResource BotSlider}" Value="{Binding CtfBots}" />
+                        <TextBox Style="{StaticResource Number}" Width="48" Margin="12,0,0,0" Text="{Binding CtfBots, UpdateSourceTrigger=LostFocus}" />
+                        <TextBlock Text="per team" Style="{StaticResource Unit}" />
+                    </StackPanel>
+                </Grid>
+                <Rectangle Style="{StaticResource Divider}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Assault and Hunt bots" Style="{StaticResource RowTitle}" />
+                        <TextBlock Text="{Binding AssaultBotsNote}" Style="{StaticResource RowNote}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Slider Style="{StaticResource BotSlider}" Value="{Binding AssaultBots}" />
+                        <TextBox Style="{StaticResource Number}" Width="48" Margin="12,0,0,0" Text="{Binding AssaultBots, UpdateSourceTrigger=LostFocus}" />
                         <TextBlock Text="per team" Style="{StaticResource Unit}" />
                     </StackPanel>
                 </Grid>
