@@ -10,27 +10,32 @@ public static class StockLvls
 {
     public static readonly string[] Names = { "shell", "common", "ingame", "mission" };
 
-    /// <summary>Steam depot 6061 (v1.1), the hashes pinned in OpenSWBF2's tools\lvl_build.cpp.
-    /// Release manifests can accept more, such as another store's copy.</summary>
+    /// <summary>The hashes pinned in OpenSWBF2's tools\lvl_build.cpp: Steam depot 6061 (v1.1), then
+    /// GOG v1.1 (installer build 10935), whose mission.lvl is Steam's. Each release manifest says
+    /// which ones its build takes.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> Known = new Dictionary<string, string[]>
     {
-        ["shell"] = new[] { "82335ab55e17689cd620ba174568e6a5481d4523b821549aa153a6b88a831009" },
-        ["common"] = new[] { "60dfca80aaa21a01744eeddd4e2f71a5e732b492b5def9decca78e4b4afe9a58" },
-        ["ingame"] = new[] { "cc78b5dfd6f4a082cb5a5da8cdfd67de5d45a092e25f57c47ad55c41499182dc" },
+        ["shell"] = new[]
+        {
+            "82335ab55e17689cd620ba174568e6a5481d4523b821549aa153a6b88a831009",
+            "7cde6a5fcb121653d4f647ce7a2b158305e88bad01bf55d14cfabcd4d0b3d00b",
+        },
+        ["common"] = new[]
+        {
+            "60dfca80aaa21a01744eeddd4e2f71a5e732b492b5def9decca78e4b4afe9a58",
+            "7a6c9a52a76e5ba7e30ac7a9b5d3e2a1fbbd0f4567c4684361b138c0ce68b2f1",
+        },
+        ["ingame"] = new[]
+        {
+            "cc78b5dfd6f4a082cb5a5da8cdfd67de5d45a092e25f57c47ad55c41499182dc",
+            "338b9d1db70383b2eeed26b600b987f8e0bb6d9a4151c79eef6848edabecdbdd",
+        },
         ["mission"] = new[] { "f1000a76ec8d642b5e531833a6d53b9b5f37dbc0a3bbb4bfe605710fc66da10b" },
     };
 
-    /// <summary>GOG v1.1 (installer build 10935). Its shell.lvl lacks two of Steam's scripts, so
-    /// OpenSWBF2 cannot build from it yet; these only let the launcher say so.</summary>
-    public static readonly IReadOnlyDictionary<string, string> Gog = new Dictionary<string, string>
-    {
-        ["shell"] = "7cde6a5fcb121653d4f647ce7a2b158305e88bad01bf55d14cfabcd4d0b3d00b",
-        ["common"] = "7a6c9a52a76e5ba7e30ac7a9b5d3e2a1fbbd0f4567c4684361b138c0ce68b2f1",
-        ["ingame"] = "338b9d1db70383b2eeed26b600b987f8e0bb6d9a4151c79eef6848edabecdbdd",
-    };
-
-    public const string GogNotYet =
-        "This is the GOG version. OpenBattlefront works with the Steam version for now; GOG support is planned.";
+    public const string GogInstaller =
+        "That's GOG's installer. Install the game with it first, then drop the installed folder " +
+        @"(C:\GOG Games\Star Wars - Battlefront 2 unless you picked another).";
 
     /// <summary>The GOG offline installer (setup_star_wars_-_battlefront_2_*.exe and its .bin parts).</summary>
     public static bool IsGogInstaller(string path) =>
@@ -72,10 +77,6 @@ public sealed record ValidationResult(string GameData, IReadOnlyList<LvlCheck> L
     public bool Ok => Lvls.All(l => l.Ok);
     public IEnumerable<string> Missing => Lvls.Where(l => l.Path == null).Select(l => l.Name + ".lvl");
     public IEnumerable<string> Modified => Lvls.Where(l => l.Path != null && !l.Ok).Select(l => l.Name + ".lvl");
-
-    /// <summary>Every lvl that fails is GOG's own stock file.</summary>
-    public bool IsGog => !Ok && Lvls.Where(l => !l.Ok).All(l => l.Sha256 != null &&
-        StockLvls.Gog.TryGetValue(l.Name, out var gog) && string.Equals(gog, l.Sha256, StringComparison.OrdinalIgnoreCase));
 }
 
 public static class GameValidator

@@ -45,8 +45,6 @@ public sealed class GameSetup
 
     public static string Explain(ValidationResult result)
     {
-        if (result.IsGog)
-            return StockLvls.GogNotYet;
         if (result.Missing.Any())
             return $"Some core game files are missing ({string.Join(", ", result.Missing)}). Drop a complete copy of the game.";
         return $"This copy has modified core files ({string.Join(", ", result.Modified)}), usually from the 1.3 patch or a mod " +

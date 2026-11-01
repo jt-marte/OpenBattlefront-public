@@ -217,7 +217,7 @@ public sealed class PlayViewModel : ObservableObject
         _main.Page = Page.Play;
         if (StockLvls.IsGogInstaller(path))
         {
-            ShowInvalid(StockLvls.GogNotYet);
+            ShowInvalid(StockLvls.GogInstaller);
             return;
         }
         string? gameData = GameLocator.FindGameData(path);
@@ -225,7 +225,7 @@ public sealed class PlayViewModel : ObservableObject
         {
             if (GameFinder.HasGogInstaller(path))
             {
-                ShowInvalid(StockLvls.GogNotYet);
+                ShowInvalid(StockLvls.GogInstaller);
                 return;
             }
             // A folder that holds the game somewhere below it: X:\Games, steamapps\common …

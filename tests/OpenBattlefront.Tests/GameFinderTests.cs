@@ -77,12 +77,12 @@ public class GameFinderTests
     public void GOG_retail_and_installed_program_entries_are_found()
     {
         using var temp = new TempDir();
-        temp.FakeGame(@"GOG Games\Star Wars Battlefront II\GameData");
+        temp.FakeGame(@"GOG Games\Star Wars - Battlefront 2\GameData");
         temp.FakeGame(@"LucasArts\SWBF2\GameData");
         temp.FakeGame(@"Elsewhere\BF2\GameData");
         var registry = new FakeRegistry()
-            .Set(@"HKLM\SOFTWARE\WOW6432Node\GOG.com\Games\1207659232", "gameName", "Star Wars: Battlefront II")
-            .Set(@"HKLM\SOFTWARE\WOW6432Node\GOG.com\Games\1207659232", "path", temp.Sub(@"GOG Games\Star Wars Battlefront II"))
+            .Set(@"HKLM\SOFTWARE\WOW6432Node\GOG.com\Games\1421404701", "gameName", "STAR WARS Battlefront II")
+            .Set(@"HKLM\SOFTWARE\WOW6432Node\GOG.com\Games\1421404701", "path", temp.Sub(@"GOG Games\Star Wars - Battlefront 2"))
             .Set(@"HKLM\SOFTWARE\WOW6432Node\GOG.com\Games\1", "gameName", "Some other game")
             .Set(@"HKLM\SOFTWARE\WOW6432Node\GOG.com\Games\1", "path", temp.Path)
             .Set(@"HKLM\SOFTWARE\WOW6432Node\LucasArts\Star Wars Battlefront II\1.0", "InstallPath", temp.Sub(@"LucasArts\SWBF2"))
@@ -92,7 +92,7 @@ public class GameFinderTests
         var found = new GameFinder(registry, () => Array.Empty<string>()).FindRegistered();
 
         Assert.Equal(new[] { "GOG", "Retail", "Installed program" }, found.Select(f => f.Source));
-        Assert.Equal(temp.Sub(@"GOG Games\Star Wars Battlefront II\GameData"), found[0].GameData);
+        Assert.Equal(temp.Sub(@"GOG Games\Star Wars - Battlefront 2\GameData"), found[0].GameData);
     }
 
     [Fact]
@@ -101,6 +101,7 @@ public class GameFinderTests
         using var drive = new TempDir();
         drive.FakeGame(@"SteamLibrary\steamapps\common\Star Wars Battlefront II Classic\GameData");
         drive.FakeGame(@"Stuff\Old games\SW Battlefront 2 backup\GameData");
+        drive.FakeGame(@"GOG Games\Star Wars - Battlefront 2\GameData");
         // A Steam library a few folders down
         drive.FakeGame(@"Media\Steam\steamapps\common\Star Wars Battlefront II Classic\GameData");
         // Too deep, and in folders the search skips
@@ -113,6 +114,7 @@ public class GameFinderTests
         {
             drive.Sub(@"SteamLibrary\steamapps\common\Star Wars Battlefront II Classic\GameData"),
             drive.Sub(@"Stuff\Old games\SW Battlefront 2 backup\GameData"),
+            drive.Sub(@"GOG Games\Star Wars - Battlefront 2\GameData"),
             drive.Sub(@"Media\Steam\steamapps\common\Star Wars Battlefront II Classic\GameData"),
         }.OrderBy(p => p), found.Select(f => f.GameData).OrderBy(p => p));
         Assert.All(found, f => Assert.StartsWith("Found on ", f.Source));
