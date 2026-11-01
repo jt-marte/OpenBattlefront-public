@@ -4,7 +4,7 @@
         xmlns:vm="clr-namespace:OpenBattlefront.ViewModels"
         xmlns:views="clr-namespace:OpenBattlefront.Views"
         Title="OpenBattlefront"
-        Width="960" Height="600"
+        Width="1200" Height="750"
         ResizeMode="CanMinimize" WindowStyle="None" WindowStartupLocation="CenterScreen"
         Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
         FontFamily="{StaticResource Ui}" UseLayoutRounding="True" SnapsToDevicePixels="True"

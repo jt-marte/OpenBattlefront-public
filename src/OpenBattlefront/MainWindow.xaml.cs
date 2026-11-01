@@ -11,6 +11,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // The window can't be resized, so on a small screen (a 1366x768 laptop, say) it shrinks to
+        // fit the work area instead of running under the taskbar
+        var area = SystemParameters.WorkArea;
+        Width = Math.Min(Width, area.Width);
+        Height = Math.Min(Height, area.Height);
         DataContextChanged += (_, e) =>
         {
             if (e.NewValue is MainViewModel main)
