@@ -13,6 +13,7 @@ public sealed class SettingsViewModel : ObservableObject
         _main = main;
         Func<bool> idle = () => !_main.Activity.IsBusy;
         CheckUpdatesCommand = new RelayCommand(() => _ = CheckUpdatesAsync(), idle);
+        CheckLauncherUpdateCommand = new RelayCommand(() => _ = _main.CheckLauncherUpdateAsync(silent: false), idle);
         InstallFromFileCommand = new RelayCommand(() => _main.Play.ChoosePackage(), idle);
         RollBackCommand = new RelayCommand(() => _ = _main.Play.RollBackAsync(), () => idle() && CanRollBack);
         OpenInstallFolderCommand = new RelayCommand(() => ShellOpen.Folder(Layout.Root, create: true));
@@ -128,6 +129,7 @@ public sealed class SettingsViewModel : ObservableObject
     }
 
     public ICommand CheckUpdatesCommand { get; }
+    public ICommand CheckLauncherUpdateCommand { get; }
     public ICommand InstallFromFileCommand { get; }
     public ICommand RollBackCommand { get; }
     public ICommand OpenInstallFolderCommand { get; }

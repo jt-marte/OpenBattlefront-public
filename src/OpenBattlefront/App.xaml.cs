@@ -18,12 +18,28 @@ public partial class App : Application
     /// install), --screenshot &lt;dir&gt; saves each page as a PNG and exits, --drop &lt;path&gt; drops a
     /// folder on the Play page first, --fake-server runs the Server manager against a simulated
     /// server and the sample map list, --loopback hosts a server only this PC can reach (-netloopback,
-    /// the mod service on 127.0.0.1), so tests raise no firewall prompt.
+    /// the mod service on 127.0.0.1), so tests raise no firewall prompt. --updated &lt;pid&gt; comes from a
+    /// launcher that just updated itself. For testing updates: OBF_UPDATE_URL reads another
+    /// releases/latest, and OBF_UPDATE_YES=1 accepts the update without asking.
     /// </summary>
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
         DispatcherUnhandledException += OnUnhandled;
+
+        // Started by a launcher that just updated itself: let it exit first, so this one takes the
+        // single-launcher lock instead of bringing the old window forward
+        if (int.TryParse(Arg(e.Args, "--updated"), out int previous))
+        {
+            try
+            {
+                using var old = Process.GetProcessById(previous);
+                old.WaitForExit(20000);
+            }
+            catch (ArgumentException)
+            {
+            }
+        }
 
         // One launcher at a time: starting it again brings the open one forward. Another install
         // (--state) can run beside it.

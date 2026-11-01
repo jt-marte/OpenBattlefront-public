@@ -188,8 +188,9 @@
                     <TextBlock Style="{StaticResource Body}" FontSize="12" Foreground="{StaticResource Faint}" Margin="0,8,0,0"
                                Text="Game builds include FFmpeg (LGPL 2.1) and DXVK (zlib). Not affiliated with or endorsed by EA, Disney or Lucasfilm." />
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Style="{StaticResource LinkButton}" Content="Check for launcher updates" Command="{Binding CheckLauncherUpdateCommand}" Margin="0,0,20,0" />
                         <Button Style="{StaticResource LinkButton}" Content="OpenBattlefront on GitHub" Command="{Binding OpenUrlCommand}"
-                                CommandParameter="https://github.com/jt-marte/OpenBattlefront" />
+                                CommandParameter="https://github.com/jt-marte/OpenBattlefront-public" />
                         <Button Style="{StaticResource LinkButton}" Content="OpenSWBF2 on GitHub" Margin="20,0,0,0" Command="{Binding OpenUrlCommand}"
                                 CommandParameter="https://github.com/jt-marte/OpenSWBF2" />
                     </StackPanel>

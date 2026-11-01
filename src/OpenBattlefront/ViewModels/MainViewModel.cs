@@ -205,8 +205,85 @@ public sealed class MainViewModel : ObservableObject
             await GetEssentialAsync(mod);
     }
 
+    /// <summary>A newer launcher on the public release repo: offered at start (with the setting
+    /// "check for updates on start") and from Settings. Updating downloads the exe alone, checks its
+    /// SHA-256, swaps it in and restarts the launcher.</summary>
+    public async Task CheckLauncherUpdateAsync(bool silent)
+    {
+        ReleaseInfo? release;
+        try
+        {
+            using var http = ReleaseClient.CreateHttp(LauncherVersion);
+            release = await LauncherUpdate.GetLatestAsync(http, CancellationToken.None);
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            if (!silent) ShowNotice("Couldn't check for launcher updates: " + e.Message, error: true);
+            return;
+        }
+        if (release == null || !LauncherUpdate.IsNewer(release, LauncherVersion))
+        {
+            if (!silent) ShowNotice($"The launcher is up to date ({LauncherVersion.ToString(3)}).");
+            return;
+        }
+        string exe = Environment.ProcessPath ?? "";
+        if (!exe.EndsWith(LauncherUpdate.ExeName, StringComparison.OrdinalIgnoreCase) || !LauncherUpdate.CanReplace(exe))
+        {
+            ShowNotice($"Launcher {release.Version} is out. This copy can't update itself where it is: get it from {release.PageUrl}", error: true);
+            return;
+        }
+        if (Play.IsGameRunning || Servers.Control.ServerProcessId != null || Activity.IsBusy)
+        {
+            ShowNotice($"Launcher {release.Version} is out. Update it from Settings once the game and your server are closed.");
+            return;
+        }
+        // OBF_UPDATE_YES=1 answers for the player, in tests
+        bool yes = Environment.GetEnvironmentVariable("OBF_UPDATE_YES") == "1" ||
+                   await ConfirmAsync($"Launcher {release.Version} is out",
+                       $"You have {LauncherVersion.ToString(3)}. The launcher downloads the new version ({Sizes.Format(release.Size)}), " +
+                       "then restarts. Your game, mods and settings stay as they are.", "Update now", "Later");
+        if (!yes) return;
+        await UpdateLauncherAsync(release, exe);
+    }
+
+    private async Task UpdateLauncherAsync(ReleaseInfo release, string exe)
+    {
+        string downloaded = exe + ".download";
+        var error = await Activity.RunAsync($"Downloading launcher {release.Version}", async (progress, ct) =>
+        {
+            using var http = ReleaseClient.CreateHttp(LauncherVersion);
+            var download = new Progress<TransferProgress>(t => progress.Report(new StepUpdate(
+                $"Downloading launcher {release.Version}",
+                $"{Sizes.Format(t.BytesDone)} of {Sizes.Format(t.BytesTotal)}  ·  {Sizes.Format((long)t.BytesPerSecond)}/s",
+                t.Fraction)));
+            await new ReleaseClient(LauncherUpdate.Repo, http).DownloadAsync(release, downloaded, download, ct);
+            LauncherUpdate.Swap(exe, downloaded);
+        }, cancellable: true);
+        if (error != null)
+        {
+            LauncherUpdate.CleanUp(exe);
+            ShowError(error, "Launcher update cancelled.");
+            return;
+        }
+        // The new launcher gets this one's arguments, and waits for it to exit before it takes the
+        // single-launcher lock
+        var restart = new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = false };
+        string[] args = Environment.GetCommandLineArgs();
+        for (int i = 1; i < args.Length; i++)
+        {
+            if (args[i].Equals("--updated", StringComparison.OrdinalIgnoreCase)) i++;
+            else restart.ArgumentList.Add(args[i]);
+        }
+        restart.ArgumentList.Add("--updated");
+        restart.ArgumentList.Add(Environment.ProcessId.ToString());
+        System.Diagnostics.Process.Start(restart);
+        System.Windows.Application.Current.Shutdown();
+    }
+
     public async Task StartAsync()
     {
+        LauncherUpdate.CleanUp(Environment.ProcessPath ?? "");
+        if (Setup.State.CheckUpdatesOnStart) await CheckLauncherUpdateAsync(silent: true);
         DisablePatch();
         Play.Refresh();
         if (!Directory.Exists(Setup.Content.Dir) && GameContent.StartedFromTemp(AppContext.BaseDirectory, Path.GetTempPath()))
