@@ -280,6 +280,22 @@ public sealed class MainViewModel : ObservableObject
         System.Windows.Application.Current.Shutdown();
     }
 
+    /// <summary>Mods as their installers left them, put right (ModFixups): BF1's Classic Conquest
+    /// soldiers copied into its folder so a server and friends get them with it.</summary>
+    private async Task CompleteModsAsync()
+    {
+        if (!Setup.IsReady) return;
+        try
+        {
+            if (await Task.Run(() => ModFixups.CompleteBf1(Setup.Layout)))
+                ShowNotice("Copied BF1's Classic Conquest soldiers (swbf1.lvl) into its mod folder, so your server and friends get them too.");
+        }
+        catch (IOException e)
+        {
+            ShowNotice("Couldn't copy BF1's Classic Conquest soldiers into its mod folder: " + e.Message, error: true);
+        }
+    }
+
     public async Task StartAsync()
     {
         LauncherUpdate.CleanUp(Environment.ProcessPath ?? "");
@@ -289,6 +305,7 @@ public sealed class MainViewModel : ObservableObject
         if (!Directory.Exists(Setup.Content.Dir) && GameContent.StartedFromTemp(AppContext.BaseDirectory, Path.GetTempPath()))
             ShowNotice(GameContent.UnzipFirst, error: true);
         await InstallContentAsync();
+        await CompleteModsAsync();
         if (Setup.IsReady && Setup.State.CheckUpdatesOnStart) await Play.CheckForUpdateAsync(silent: true);
         else if (Setup.State.ImportComplete && !Setup.IsReady) await Play.LoadLatestAsync();
         await Servers.Control.ReattachAsync();
