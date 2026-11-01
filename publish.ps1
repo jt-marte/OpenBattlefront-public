@@ -23,6 +23,12 @@ $project = Join-Path $root 'src\OpenBattlefront\OpenBattlefront.csproj'
 if ($PSBoundParameters.ContainsKey('AddOn')) { $Content = $true }
 if ($Content -and -not (Test-Path -LiteralPath $AddOn -PathType Container)) { throw "No AddOn folder at $AddOn." }
 
+# <file>.sha256 beside it, as LauncherUpdate reads it: "<sha256> *<name>" and a newline
+function Write-Sha256($file) {
+    $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
+    [IO.File]::WriteAllText($file.FullName + '.sha256', "$hash *$($file.Name)`n", [Text.Encoding]::ASCII)
+}
+
 $publishArgs = @('publish', $project, '-c', 'Release', '-r', 'win-x64',
     '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:DebugType=none', '-o', $out, '--nologo')
 if ($Small) { $publishArgs += '--self-contained', 'false' }
@@ -31,6 +37,7 @@ else { $publishArgs += '--self-contained', 'true', '-p:EnableCompressionInSingle
 & dotnet @publishArgs
 if ($LASTEXITCODE) { throw 'dotnet publish failed.' }
 $exe = Get-Item (Join-Path $out 'OpenBattlefront.exe')
+Write-Sha256 $exe
 Write-Host ("{0}  {1:N1} MB" -f $exe.FullName, ($exe.Length / 1MB))
 
 if ($Content) {
@@ -41,5 +48,6 @@ if ($Content) {
     & dotnet run --project (Join-Path $root 'tools\OpenBattlefront.Pack\OpenBattlefront.Pack.csproj') -c Release '--' $exe.FullName $AddOn $zip
     if ($LASTEXITCODE) { throw 'Packing the included content failed.' }
     $package = Get-Item $zip
+    Write-Sha256 $package
     Write-Host ("{0}  {1:N1} MB" -f $package.FullName, ($package.Length / 1MB))
 }
