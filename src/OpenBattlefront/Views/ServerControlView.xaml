@@ -251,6 +251,14 @@
                            Visibility="{Binding HasSharingText, Converter={StaticResource Vis}}"
                            ToolTip="Joining launchers get the server's mods and wait in the launcher lobby until you start the match" />
                 <DockPanel Margin="0,10,0,0" LastChildFill="False">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Small}" Margin="0" Command="{Binding JoinGameCommand}"
+                            Visibility="{Binding IsRunning, Converter={StaticResource Vis}}"
+                            ToolTip="Your game joins this server, straight past the launcher lobby; this screen stays here">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE7FC;" Style="{StaticResource BtnGlyph}" />
+                            <TextBlock Text="{Binding JoinGameText}" />
+                        </StackPanel>
+                    </Button>
                     <Button DockPanel.Dock="Left" Style="{StaticResource SmallPrimary}" Command="{Binding LaunchCommand}"
                             Visibility="{Binding ShowLaunch, Converter={StaticResource Vis}}">
                         <StackPanel Orientation="Horizontal">
