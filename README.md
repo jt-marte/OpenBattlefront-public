@@ -3,8 +3,8 @@
 A small launcher for [OpenSWBF2](https://github.com/jt-marte/OpenSWBF2), the open-source rebuild of
 Star Wars Battlefront II (2005). Point it at your copy of the game and press **PLAY**.
 
-- **Finds your game.** It spots an installed Steam copy by itself. Or drop the game folder on the
-  window.
+- **Finds your game.** It spots an installed Steam or GOG copy by itself. Or drop the game folder on
+  the window.
 - **Never touches your copy.** It copies what the game needs (about 10 GB) into its own folder, then
   builds OpenSWBF2's core files from your stock ones, on your PC.
 - **Ships no game files.** Releases hold only OpenSWBF2's own code and scripts, FFmpeg and DXVK.
@@ -25,7 +25,8 @@ Star Wars Battlefront II (2005). Point it at your copy of the game and press **P
 ## What you need
 
 - Windows 10 or 11, 64-bit.
-- Star Wars Battlefront II (Classic, 2005), Steam v1.1. GOG support is planned.
+- Star Wars Battlefront II (Classic, 2005), Steam or GOG v1.1. GOG and Steam players can play
+  together.
 - The Microsoft Visual C++ Redistributable (x64) and the DirectX End-User Runtime. The launcher tells
   you if either is missing.
 
