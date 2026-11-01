@@ -51,6 +51,7 @@ public sealed class ServerControlViewModel : ObservableObject
     private string _remotePassword = "";
     private bool _keepsSettings;
     private bool _remoteLobby;
+    private bool _joining;
     private AdminSettingsReply? _remoteSettings;
     private MatchStatus? _match;
     private DateTime _lastAnswer;
@@ -128,6 +129,13 @@ public sealed class ServerControlViewModel : ObservableObject
         ApplyOptionsCommand = new RelayCommand(() => _ = ApplyOptionsAsync(), () => CanControl && LiveOptions.IsDirty);
         SelectTabCommand = new RelayCommand(p => Tab = Enum.Parse<ControlTab>((string)p!));
         DisconnectCommand = new RelayCommand(() => _ = DisconnectAsync());
+        JoinGameCommand = new RelayCommand(() => _ = JoinGameAsync(), () => CanJoinGame);
+        main.Play.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(PlayViewModel.IsGameRunning)) return;
+            Raise(nameof(JoinGameText));
+            CommandManager.InvalidateRequerySuggested();
+        };
         ResetSettingsCommand = new RelayCommand(() => _ = ResetSettingsAsync(), () => _remoteMods != null && HasSavedSettings && !_busy);
     }
 
@@ -154,6 +162,16 @@ public sealed class ServerControlViewModel : ObservableObject
 
     public ICommand DisconnectCommand { get; }
     public ICommand ResetSettingsCommand { get; }
+
+    /// <summary>Join as player: this PC's game joins the server while this screen stays on it.</summary>
+    public ICommand JoinGameCommand { get; }
+
+    /// <summary>"Join as player", or "Running" while the game is open (as Play shows it).</summary>
+    public string JoinGameText => _main.Play.IsGameRunning ? "Running" : "Join as player";
+
+    private bool CanJoinGame =>
+        IsRunning && Status != ServerStatus.Stopping && !_joining && !_main.Play.IsGameRunning && !Activity.IsBusy &&
+        _main.Setup.IsReady && (IsRemote ? _remoteAddress != null : !UseFakeServer);
 
     /// <summary>Development and screenshots: a simulated server and the sample map list, no game.</summary>
     public bool UseFakeServer { get; set; }
@@ -1163,6 +1181,40 @@ public sealed class ServerControlViewModel : ObservableObject
         UpdateSharing();
         foreach (string name in new[] { nameof(HasModsTab), nameof(KeepsSettings), nameof(OptionsNote) }) Raise(name);
         LiveOptions.Refresh();
+    }
+
+    /// <summary>Join as player: the game joins this server straight away, past the launcher lobby,
+    /// while this screen stays on it. A server elsewhere is joined at the address the admin used,
+    /// the hosted one on this PC; the join password is the one the game runs with.</summary>
+    private async Task JoinGameAsync()
+    {
+        if (!CanJoinGame) return;
+        _joining = true;
+        CommandManager.InvalidateRequerySuggested();
+        try
+        {
+            ServerAddress server = IsRemote ? _remoteAddress! : new ServerAddress("127.0.0.1", Profile.Port);
+            string? password = IsRemote ? await ReadJoinPasswordAsync() : Profile.JoinPassword;
+            if (await _main.Multiplayer.JoinNowAsync(server, password))
+                AddMessage(ChatKind.Admin, "Your game is opening on the server.");
+        }
+        finally
+        {
+            _joining = false;
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    /// <summary>The join password a server elsewhere runs with: its game says (/password with no
+    /// value answers with it), else what its service keeps for it.</summary>
+    private async Task<string?> ReadJoinPasswordAsync()
+    {
+        if (_admin is { IsLoggedIn: true } admin)
+        {
+            try { return await admin.ReadTextAsync("password"); }
+            catch (Exception e) when (e is TimeoutException or RconException or System.Net.Sockets.SocketException or ObjectDisposedException) { }
+        }
+        return _remoteSettings?.Settings.JoinPassword;
     }
 
     /// <summary>Leaves a server elsewhere as it is, and logs out.</summary>

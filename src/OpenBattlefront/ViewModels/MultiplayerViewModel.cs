@@ -233,6 +233,51 @@ public sealed class MultiplayerViewModel : ObservableObject
         catch (Exception e) when (e is HttpRequestException or ModServiceException) { }
     }
 
+    /// <summary>Straight into a server's game, past its launcher lobby: the admin screen's Join as
+    /// player. The player name and the server's mods are seen to as for Direct Connect; the join
+    /// password is the one the admin's server runs with, so it is never asked for. A server that
+    /// holds its lobby takes the game into the held lobby, for the admin to start. False when the
+    /// game didn't start.</summary>
+    public async Task<bool> JoinNowAsync(ServerAddress server, string? password)
+    {
+        if (!await _main.Play.EnsurePlayerNameAsync(forJoin: true)) return false;
+        if (string.IsNullOrEmpty(password)) password = null;
+        string title = $"Joining {server}";
+        ModServiceReply reply = new(ModServiceStatus.Unavailable);
+        // The mods take the service's password; a game given one live (/password) can differ
+        string? modsPassword = password;
+        var error = await Activity.RunAsync(title, async (progress, ct) =>
+        {
+            progress.Report(new StepUpdate(title, "Asking the server for its mods"));
+            (reply, modsPassword) = await ModService.GetManifestOrOpenAsync(_http, server, password, ct);
+        }, cancellable: true);
+        if (error != null)
+        {
+            _main.ShowError(error, "Not joined.");
+            return false;
+        }
+        if (reply.Status == ModServiceStatus.NeedsPassword)
+        {
+            _main.ShowNotice($"{server} didn't take its own join password. Try again in a moment: its game may be restarting.", error: true);
+            return false;
+        }
+        var target = new JoinTarget(server, password);
+        if (reply.Status == ModServiceStatus.Unavailable) return await _main.Play.LaunchAsync(target);
+
+        var manifest = reply.Manifest!;
+        var plan = await PlanAsync(server, manifest);
+        if (plan == null) return false;
+        if (!plan.IsEmpty)
+        {
+            string name = string.IsNullOrWhiteSpace(manifest.Server) ? server.ToString() : manifest.Server;
+            if (!await _main.ConfirmAsync("Get the server's mods?", Describe(name, plan),
+                    plan.Bytes > 0 ? $"Download {Sizes.Format(plan.Bytes)} and join" : "Switch on and join"))
+                return false;
+            if (!await DownloadAsync(server, modsPassword, plan, null)) return false;
+        }
+        return await _main.Play.LaunchAsync(target);
+    }
+
     private async Task<ModSyncPlan?> PlanAsync(ServerAddress server, ServerModsManifest manifest)
     {
         string name = string.IsNullOrWhiteSpace(manifest.Server) ? server.ToString() : manifest.Server;
