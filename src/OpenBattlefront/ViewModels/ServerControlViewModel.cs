@@ -50,6 +50,7 @@ public sealed class ServerControlViewModel : ObservableObject
     private ServerAddress? _remoteAddress;
     private string _remotePassword = "";
     private bool _keepsSettings;
+    private bool _remoteLobby;
     private AdminSettingsReply? _remoteSettings;
     private MatchStatus? _match;
     private DateTime _lastAnswer;
@@ -141,6 +142,9 @@ public sealed class ServerControlViewModel : ObservableObject
     /// <summary>The server elsewhere keeps what is applied here for its next starts (its mod
     /// service's /admin/settings).</summary>
     public bool KeepsSettings => _keepsSettings;
+
+    /// <summary>The server elsewhere holds each map in the lobby until Start (from its next game start).</summary>
+    internal bool RemoteLobby { get => _remoteLobby; set => _remoteLobby = value; }
 
     /// <summary>The server elsewhere's mods, next to this PC's (its mod service).</summary>
     public RemoteAdminViewModel? RemoteMods => _remote;
@@ -245,7 +249,7 @@ public sealed class ServerControlViewModel : ObservableObject
     public string OptionsNote => !IsRemote
         ? "These apply from the next map. Name, port, tick rate and passwords change only when the server starts again."
         : KeepsSettings
-            ? "These apply from the next map, and the server keeps them for its next starts. Its name, player limit and tick rate apply when its game restarts."
+            ? "These apply from the next map, and the server keeps them. Its name, join password, player limit, tick rate and lobby apply when its game restarts."
             : "These apply from the next map, until the server restarts: it keeps no settings from here.";
 
     /// <summary>The hosted server's log is in the chat; a server elsewhere sends only chat and events.</summary>
@@ -705,18 +709,18 @@ public sealed class ServerControlViewModel : ObservableObject
         CommandManager.InvalidateRequerySuggested();
     }
 
-    /// <summary>Back to compose.yaml's settings: the server forgets what admins saved from here.</summary>
+    /// <summary>Back to the server's defaults: it forgets what admins saved from here.</summary>
     private async Task ResetSettingsAsync()
     {
         if (_remoteMods == null) return;
-        if (!await _main.ConfirmAsync("Use compose.yaml's settings?",
-                "The server forgets the playlist, options, name and limits saved from here, and uses compose.yaml's from its next start. The game running now keeps what it has.",
-                "Use compose.yaml's"))
+        if (!await _main.ConfirmAsync("Back to the defaults?",
+                "The server forgets the playlist, options, name, join password and limits saved from here. From its next start it plays the 8 stock Conquest maps with 16 bots a team on Hard; the game running now keeps what it has.",
+                "Back to the defaults"))
             return;
         try
         {
             ShowSettings(await _remoteMods.ResetSettingsAsync(CancellationToken.None));
-            _main.ShowNotice("The server uses compose.yaml's settings from its next start.");
+            _main.ShowNotice("The server goes back to its defaults from its next start.");
         }
         catch (Exception e) when (e is HttpRequestException or ModServiceException or InvalidDataException or TaskCanceledException)
         {
@@ -839,13 +843,14 @@ public sealed class ServerControlViewModel : ObservableObject
             bool restartSettings = LiveOptions.RestartSettingsChanged && KeepsSettings;
             if (restartSettings)
             {
-                var server = AdminSettings.ForServer(Profile);
-                (keep.Name, keep.MaxPlayers, keep.TickRate) = (server.Name, server.MaxPlayers, server.TickRate);
+                var server = AdminSettings.ForServer(Profile, _remoteLobby);
+                (keep.Name, keep.JoinPassword, keep.MaxPlayers, keep.TickRate, keep.Lobby) =
+                    (server.Name, server.JoinPassword, server.MaxPlayers, server.TickRate, server.Lobby);
             }
             string kept = await KeepOnServerAsync(keep, "them");
             LiveOptions.RestartSettingsChanged = false;
             _main.ShowNotice("Options sent. They apply from the next map." + kept +
-                             (restartSettings && RestartNeeded ? " The name and limits apply when its game restarts." : ""));
+                             (restartSettings && RestartNeeded ? " The name, password, limits and lobby apply when its game restarts." : ""));
         });
     }
 
@@ -1121,7 +1126,8 @@ public sealed class ServerControlViewModel : ObservableObject
         _remoteMods = mods;
         _keepsSettings = keepsSettings && mods != null && settings != null;
         if (settings?.Settings is { } next)
-            new AdminSettings { Name = next.Name, MaxPlayers = next.MaxPlayers, TickRate = next.TickRate }.ApplyTo(profile);
+            new AdminSettings { Name = next.Name, JoinPassword = next.JoinPassword, MaxPlayers = next.MaxPlayers, TickRate = next.TickRate }.ApplyTo(profile);
+        _remoteLobby = settings?.Settings.Lobby ?? false;
         profile.Port = address.Port;
         _remoteProfile = profile;
         ShowSettings(settings);

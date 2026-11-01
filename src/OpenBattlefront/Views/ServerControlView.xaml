@@ -745,7 +745,7 @@
                 <Border Background="{StaticResource AccentSoft}" CornerRadius="10" Padding="14,8,8,8">
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Style="{StaticResource SmallPrimary}" Margin="0" Height="30" Content="Apply options" Command="{Binding ApplyOptionsCommand}" />
-                        <Button DockPanel.Dock="Right" Style="{StaticResource Small}" Height="30" Margin="0,0,8,0" Content="Use compose.yaml's settings" Command="{Binding ResetSettingsCommand}"
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Small}" Height="30" Margin="0,0,8,0" Content="Back to the defaults" Command="{Binding ResetSettingsCommand}"
                                 Visibility="{Binding HasSavedSettings, Converter={StaticResource Vis}}"
                                 ToolTip="The server forgets what admins saved from here, from its next start" />
                         <TextBlock Text="&#xE946;" Style="{StaticResource Glyph}" FontSize="13" Foreground="{StaticResource Accent}" Margin="0,0,10,0" />
@@ -761,7 +761,7 @@
                         <Button DockPanel.Dock="Right" Style="{StaticResource Small}" Height="30" Margin="0,0,8,0" Content="Restart when empty" Command="{Binding RemoteMods.RestartWhenEmptyCommand}"
                                 ToolTip="The server's game restarts the next time nobody is on" />
                         <TextBlock VerticalAlignment="Center" FontSize="12.5" Foreground="{StaticResource Text}" TextWrapping="Wrap" Margin="0,0,12,0"
-                                   Text="The name, player limit or tick rate you saved are used once the server's game restarts." />
+                                   Text="The name, join password, limits or lobby you saved are used once the server's game restarts." />
                     </DockPanel>
                 </Border>
             </StackPanel>

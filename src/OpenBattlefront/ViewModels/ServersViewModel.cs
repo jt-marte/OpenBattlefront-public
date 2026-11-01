@@ -118,8 +118,20 @@ public sealed class ServerOptionsViewModel : ObservableObject
     public bool RemoteServerEditable => _owner?.KeepsSettings == true;
 
     public string RemoteServerNote => RemoteServerEditable
-        ? "These three apply when the server's game restarts."
+        ? "These apply when the server's game restarts."
         : "This server keeps no settings from here: change these where it's started.";
+
+    /// <summary>A server elsewhere: each map waits in the lobby until an admin starts it.</summary>
+    public bool RemoteLobby
+    {
+        get => _owner?.RemoteLobby == true;
+        set
+        {
+            if (_owner == null || _owner.RemoteLobby == value) return;
+            _owner.RemoteLobby = value;
+            Changed(nameof(RemoteLobby), restartSetting: true);
+        }
+    }
 
     /// <summary>The name, player limit or tick rate changed since they were last sent.</summary>
     public bool RestartSettingsChanged { get => _restartSettingsChanged; set => Set(ref _restartSettingsChanged, value); }
@@ -180,7 +192,7 @@ public sealed class ServerOptionsViewModel : ObservableObject
         {
             Profile.JoinPassword = value;
             Profile.Normalize();
-            Changed(nameof(JoinPassword));
+            Changed(nameof(JoinPassword), restartSetting: true);
         }
     }
 

@@ -24,10 +24,8 @@ public class ModSyncEndToEndTests
         File.WriteAllBytes(temp.File(@"server\addons\BF1\data\_lvl_pc\bf1.lvl"), Enumerable.Range(0, 2_000_000).Select(i => (byte)i).ToArray());
         temp.File(@"server\addons\BF1\setup.exe", "MZ");
         temp.File(@"server\addons\AAA-v1.3patch\addme.script", "patch");
-        Directory.CreateDirectory(temp.Sub(@"server\config"));
-        // compose.yaml's values, as the entrypoint writes them before each game start
-        temp.File(@"server\config\settings\compose.json",
-            """{"name": "E2E server", "maxPlayers": 32, "tickRate": 60, "maps": [{"mission": "geo1c_con"}], "options": {"difficulty": 3}}""");
+        // The running game's name and join password, as the entrypoint writes them before each game start
+        temp.File(@"server\config\settings\effective.json", """{"name": "E2E server", "joinPassword": "secret"}""");
 
         int port = FreePort();
         var info = new ProcessStartInfo("python", $"\"{script}\" serve --host 127.0.0.1 --port {port} --addons \"{temp.Sub(@"server\addons")}\" --config \"{temp.Sub(@"server\config")}\"")
@@ -36,9 +34,7 @@ public class ModSyncEndToEndTests
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        info.Environment["JOIN_PASSWORD"] = "secret";
         info.Environment["ADMIN_PASSWORD"] = "Admin12345";
-        info.Environment["SERVER_NAME"] = "E2E server";
         info.Environment["MOD_RATE"] = "0";
         using var service = Process.Start(info)!;
         try
@@ -97,8 +93,10 @@ public class ModSyncEndToEndTests
             }), default);
             Assert.Equal(new[] { "kas2g_con 150 150", "geo1c_con" },
                 settings.Settings.Maps!.Select(m => new PlaylistEntry { Mission = m.Mission, Tickets1 = m.Tickets1, Tickets2 = m.Tickets2 }.ToArgument()));
-            settings = await admin.SaveSettingsAsync(AdminSettings.ForServer(applied), default);
-            Assert.Equal(("Friday Night", 16, 120), (settings.Settings.Name, settings.Settings.MaxPlayers, settings.Settings.TickRate));
+            applied.JoinPassword = "letmein";
+            settings = await admin.SaveSettingsAsync(AdminSettings.ForServer(applied, lobby: true), default);
+            Assert.Equal(("Friday Night", "letmein", 16, 120, true),
+                (settings.Settings.Name, settings.Settings.JoinPassword, settings.Settings.MaxPlayers, settings.Settings.TickRate, settings.Settings.Lobby));
             Assert.Contains("maps", (await admin.GetSettingsAsync(default))!.Saved);
             var refused = await Assert.ThrowsAsync<ModServiceException>(() => admin.SaveSettingsAsync(new AdminSettings { MaxPlayers = 99 }, default));
             Assert.Equal(HttpStatusCode.BadRequest, refused.Status);

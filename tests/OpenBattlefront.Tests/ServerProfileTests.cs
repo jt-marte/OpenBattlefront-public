@@ -31,17 +31,19 @@ public class ServerProfileTests
         var playlist = new[] { new PlaylistEntry { Mission = "geo1c_con", Tickets1 = 150 }, new PlaylistEntry { Mission = "kas2g_con" } };
         Assert.Equal("""{"maps":[{"mission":"geo1c_con","tickets1":150,"tickets2":150},{"mission":"kas2g_con"}]}""",
             AdminSettings.ForPlaylist(playlist).ToJson());
-        Assert.Equal("""{"name":"Box","maxPlayers":16,"tickRate":120}""",
-            AdminSettings.ForServer(new ServerProfile { Name = "Box", MaxPlayers = 16, TickRate = 120 }).ToJson());
+        Assert.Equal("""{"name":"Box","joinPassword":"pw","maxPlayers":16,"tickRate":120,"lobby":true}""",
+            AdminSettings.ForServer(new ServerProfile { Name = "Box", JoinPassword = "pw", MaxPlayers = 16, TickRate = 120 }, lobby: true).ToJson());
 
         var reply = AdminSettingsReply.Parse("""
-            {"schema": 1, "settings": {"name": "Box", "maxPlayers": 16, "tickRate": 30, "maps": [{"mission": "nab2c_con", "tickets1": 5, "tickets2": 5}],
-             "options": {"difficulty": 2, "conaiperteam": 4, "bots": 9}}, "saved": ["maps", "options.difficulty"], "compose": {}, "restartNeeded": true}
+            {"schema": 1, "settings": {"name": "Box", "joinPassword": "", "maxPlayers": 16, "tickRate": 30, "lobby": false,
+             "maps": [{"mission": "nab2c_con", "tickets1": 5, "tickets2": 5}], "options": {"difficulty": 2, "conaiperteam": 4, "bots": 9}},
+             "saved": ["maps", "options.difficulty"], "defaults": {"name": "OpenSWBF2 Server"}, "restartNeeded": true}
             """);
         Assert.True(reply.RestartNeeded && reply.HasSaved);
-        var profile = new ServerProfile();
+        Assert.Equal("OpenSWBF2 Server", reply.Defaults.Name);
+        var profile = new ServerProfile { JoinPassword = "old" };
         reply.Settings.ApplyTo(profile);
-        Assert.Equal(("Box", 16, 30, 2, 4), (profile.Name, profile.MaxPlayers, profile.TickRate, profile.Difficulty, profile.BotsPerTeam));
+        Assert.Equal(("Box", "", 16, 30, 2, 4), (profile.Name, profile.JoinPassword, profile.MaxPlayers, profile.TickRate, profile.Difficulty, profile.BotsPerTeam));
         Assert.Equal("nab2c_con 5 5", profile.Playlist.Single().ToArgument());
         Assert.Throws<InvalidDataException>(() => AdminSettingsReply.Parse("""{"schema": 2}"""));
     }

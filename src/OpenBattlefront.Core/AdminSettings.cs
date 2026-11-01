@@ -11,14 +11,18 @@ public sealed class SavedMap
     public int? Tickets2 { get; set; }
 }
 
-/// <summary>What a server keeps for its next game start (the Docker server's /admin/settings):
-/// any of the playlist, the game options, the name, the player limit and the tick rate. A
-/// setting left null isn't sent, so the server keeps what it has for it.</summary>
+/// <summary>A server's own settings (the Docker server's /admin/settings): any of the playlist,
+/// the game options, the name, the join password, the player limit, the tick rate and whether
+/// each map waits in the lobby. A setting left null isn't sent, so the server keeps what it has.</summary>
 public sealed class AdminSettings
 {
     public string? Name { get; set; }
+    public string? JoinPassword { get; set; }
     public int? MaxPlayers { get; set; }
     public int? TickRate { get; set; }
+
+    /// <summary>Each map waits in the lobby until an admin starts it (-lobby).</summary>
+    public bool? Lobby { get; set; }
     public List<SavedMap>? Maps { get; set; }
     public Dictionary<string, int>? Options { get; set; }
 
@@ -29,17 +33,21 @@ public sealed class AdminSettings
 
     public static AdminSettings ForOptions(ServerProfile profile) => new() { Options = profile.Options() };
 
-    public static AdminSettings ForServer(ServerProfile profile) => new()
+    /// <summary>The settings that apply when the server's game restarts.</summary>
+    public static AdminSettings ForServer(ServerProfile profile, bool lobby) => new()
     {
         Name = profile.Name,
+        JoinPassword = profile.JoinPassword,
         MaxPlayers = profile.MaxPlayers,
         TickRate = profile.TickRate,
+        Lobby = lobby,
     };
 
-    /// <summary>Puts the name, limits, playlist and options that are set into a profile.</summary>
+    /// <summary>Puts the name, password, limits, playlist and options that are set into a profile.</summary>
     public void ApplyTo(ServerProfile profile)
     {
         if (!string.IsNullOrWhiteSpace(Name)) profile.Name = Name;
+        if (JoinPassword != null) profile.JoinPassword = JoinPassword;
         if (MaxPlayers is int players) profile.MaxPlayers = players;
         if (TickRate is int tick) profile.TickRate = tick;
         if (Maps != null)
@@ -62,8 +70,8 @@ public sealed class AdminSettings
 }
 
 /// <summary>GET /admin/settings: what the next game start uses, which of it an admin saved (the
-/// rest is compose.yaml's), compose.yaml's own values, and whether the running game needs a
-/// restart for its name or limits.</summary>
+/// rest is the server's defaults), the defaults, and whether the running game needs a restart for
+/// its name, join password, limits or lobby.</summary>
 public sealed class AdminSettingsReply
 {
     public int Schema { get; set; }
@@ -71,7 +79,7 @@ public sealed class AdminSettingsReply
 
     /// <summary>"maps", "name", "options.difficulty" …</summary>
     public List<string> Saved { get; set; } = new();
-    public AdminSettings Compose { get; set; } = new();
+    public AdminSettings Defaults { get; set; } = new();
     public bool RestartNeeded { get; set; }
 
     public bool HasSaved => Saved.Count > 0;

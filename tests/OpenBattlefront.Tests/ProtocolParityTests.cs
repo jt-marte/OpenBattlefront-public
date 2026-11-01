@@ -78,9 +78,9 @@ public class ProtocolParityTests
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        info.Environment["JOIN_PASSWORD"] = Join;
+        // The running game's name and join password, as the entrypoint writes them before each game start
+        host.Temp.File(@"pyconfig\settings\effective.json", $$"""{"name": "Test server", "joinPassword": "{{Join}}"}""");
         info.Environment["ADMIN_PASSWORD"] = Admin;
-        info.Environment["SERVER_NAME"] = "Test server";
         info.Environment["OPENSWBF2_VERSION"] = "0.2.2";
         info.Environment["MOD_UPLOADS"] = "0";
         info.Environment["MOD_RATE"] = "0";
