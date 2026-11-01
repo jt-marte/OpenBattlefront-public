@@ -185,7 +185,7 @@
                     <Rectangle Height="1" Fill="{StaticResource Line}" Margin="0,18" />
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE73E;" Style="{StaticResource Glyph}" FontSize="13" Foreground="{StaticResource Success}" />
-                        <TextBlock Text="Steam v1.1 core files check out" FontSize="13" Margin="10,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="The v1.1 core files check out" FontSize="13" Margin="10,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                         <TextBlock Text="&#xE896;" Style="{StaticResource Glyph}" FontSize="13" Foreground="{StaticResource Muted}" />
