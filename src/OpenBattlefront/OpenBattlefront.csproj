@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>OpenBattlefront</RootNamespace>
     <AssemblyName>OpenBattlefront</AssemblyName>
-    <Version>0.3.2</Version>
+    <Version>0.3.3</Version>
     <Product>OpenBattlefront</Product>
     <Description>Launcher for OpenSWBF2</Description>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
