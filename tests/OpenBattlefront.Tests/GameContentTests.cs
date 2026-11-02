@@ -164,6 +164,21 @@ public class GameContentTests
     }
 
     [Fact]
+    public async Task A_fresh_import_keeps_the_player_s_own_Xbox_DLC()
+    {
+        using var temp = new TempDir();
+        var (setup, removed) = Setup(temp, FakeContent(temp));
+        temp.File(@"L\Game\AddOn\DLC_XBOX\addme.script", "theirs"); // came with the imported copy
+
+        // The import installs the content (no version before it), then the next start's clean-up runs.
+        Assert.True(await setup.InstallContentAsync(new Progress<StepUpdate>(), CancellationToken.None));
+        Assert.Equal(new[] { "DLC_XBOX" }, setup.State.RetiredContentRemoved);
+        Assert.Empty(setup.Content.RemoveRetired(setup.Layout, setup.State));
+        Assert.Empty(removed);
+        Assert.True(File.Exists(temp.Sub(@"L\Game\AddOn\DLC_XBOX\addme.script")));
+    }
+
+    [Fact]
     public async Task Nothing_happens_without_a_Content_folder_or_before_the_import()
     {
         using var temp = new TempDir();
