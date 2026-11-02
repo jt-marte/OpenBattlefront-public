@@ -302,8 +302,11 @@ public class RconTests
         Assert.Equal(("Friday Night", 24, 30), (profile.Name, profile.MaxPlayers, profile.TickRate));
         Assert.Equal((4, 8, false, ServerProfile.HeroUnlockTimer, 90, 250), (profile.Difficulty, profile.ConquestBots, profile.Heroes,
             profile.HeroUnlock, profile.HeroUnlockValue, profile.ConquestReinforcements));
-        // What the server didn't answer keeps the launcher's default
+        // What the server didn't answer keeps the launcher's default, and is left out when sending
         Assert.Equal(new ServerProfile().CtfCaptures, profile.CtfCaptures);
+        Assert.Equal(new[] { "conaiperteam", "difficulty", "heroes", "hrunlock", "hrunlockvalue", "conreinforcements" }.Order(),
+            profile.AnsweredOptions!.Order());
+        Assert.False(profile.Answers("hrrespawnvalue"));
         Assert.Equal(new[] { "geo1c_con 150 150", "kas2g_con" }, profile.Playlist.Select(e => e.ToArgument()));
         // Reading only asks: nothing was set
         Assert.DoesNotContain(server.Lines, l => l.Split(' ').Length > 2 && !l.StartsWith("/admin /login"));

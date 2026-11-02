@@ -849,7 +849,8 @@ public sealed class ServerControlViewModel : ObservableObject
     {
         await Guard(async admin =>
         {
-            foreach (var (command, value) in Profile.OptionCommands()) await admin.SetOptionAsync(command, value);
+            foreach (var (command, value) in Profile.OptionCommands())
+                if (Profile.Answers(command)) await admin.SetOptionAsync(command, value);
             LiveOptions.IsDirty = false;
             if (!IsRemote)
             {

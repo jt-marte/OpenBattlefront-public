@@ -403,12 +403,12 @@ public sealed class ServerOptionsViewModel : ObservableObject
         get => Profile.HeroUnlockValue;
         set
         {
-            Profile.HeroUnlockValue = Profile.HeroUnlock == ServerProfile.HeroUnlockTimer ? Math.Clamp(value, 0, 120) : Math.Clamp(value, 1, 50);
+            Profile.HeroUnlockValue = Profile.HeroUnlock == ServerProfile.HeroUnlockTimer ? Math.Clamp(value, 0, ServerProfile.MaxHeroSeconds) : Math.Clamp(value, 1, 50);
             Changed(nameof(HeroUnlockValue), gameOption: true);
         }
     }
 
-    public string HeroUnlockUnit => Profile.HeroUnlock == ServerProfile.HeroUnlockTimer ? "seconds (0-120)" : "points (1-50)";
+    public string HeroUnlockUnit => Profile.HeroUnlock == ServerProfile.HeroUnlockTimer ? "seconds (0-300)" : "points (1-50)";
 
     /// <summary>"best" or "random".</summary>
     public string HeroPlayer
@@ -418,6 +418,35 @@ public sealed class ServerOptionsViewModel : ObservableObject
         {
             Profile.HeroPlayer = value == "random" ? ServerProfile.HeroPlayerRandom : ServerProfile.HeroPlayerBest;
             Changed(nameof(HeroPlayer), gameOption: true);
+        }
+    }
+
+    /// <summary>"timer" or "never": whether a hero can be taken again after one dies.</summary>
+    public string HeroRespawn
+    {
+        get => Profile.HeroRespawnValue < 0 ? "never" : "timer";
+        set
+        {
+            int respawn = value == "never" ? -1 : 120;
+            if ((respawn < 0) == (Profile.HeroRespawnValue < 0)) return;
+            Profile.HeroRespawnValue = respawn;
+            Changed(nameof(HeroRespawn), gameOption: true);
+            Raise(nameof(HeroRespawnTimed));
+            Raise(nameof(HeroRespawnSeconds));
+        }
+    }
+
+    public bool HeroRespawnTimed => Profile.HeroRespawnValue >= 0;
+
+    /// <summary>0 (right away) to <see cref="ServerProfile.MaxHeroSeconds"/>.</summary>
+    public int HeroRespawnSeconds
+    {
+        get => Math.Max(0, Profile.HeroRespawnValue);
+        set
+        {
+            if (Profile.HeroRespawnValue < 0) return;
+            Profile.HeroRespawnValue = Math.Clamp(value, 0, ServerProfile.MaxHeroSeconds);
+            Changed(nameof(HeroRespawnSeconds), gameOption: true);
         }
     }
 

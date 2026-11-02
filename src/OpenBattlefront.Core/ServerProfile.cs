@@ -16,6 +16,9 @@ public sealed class ServerProfile
     public const int HeroUnlockTimer = 5;
     public const int HeroPlayerBest = 1;
     public const int HeroPlayerRandom = 7;
+    /// <summary>The longest hero unlock timer and respawn time, in seconds (OpenSWBF2 0.2.9+;
+    /// Instant Action stops at 120).</summary>
+    public const int MaxHeroSeconds = 300;
 
     public string Name { get; set; } = "OpenSWBF2 Server";
     public string JoinPassword { get; set; } = "";
@@ -47,9 +50,12 @@ public sealed class ServerProfile
 
     public bool Heroes { get; set; } = true;
     public int HeroUnlock { get; set; } = HeroUnlockPoints;
-    /// <summary>Points (1-50) or seconds (0-120), as Instant Action offers them.</summary>
+    /// <summary>Points (1-50) or seconds (0-300).</summary>
     public int HeroUnlockValue { get; set; } = 10;
     public int HeroPlayer { get; set; } = HeroPlayerBest;
+    /// <summary>Seconds after a hero dies until one can be taken again (0 right away, up to
+    /// <see cref="MaxHeroSeconds"/>), or -1 never; the game's default is 120.</summary>
+    public int HeroRespawnValue { get; set; } = 120;
     /// <summary>A bot takes the hero when no player has within 30 seconds (OpenSWBF2 0.2.1+).</summary>
     public bool AiHeroes { get; set; } = true;
 
@@ -100,8 +106,9 @@ public sealed class ServerProfile
         AssaultBots = Math.Clamp(AssaultBots, 0, MaxBots);
         Difficulty = Math.Clamp(Difficulty, 2, 4);
         if (HeroUnlock != HeroUnlockTimer) HeroUnlock = HeroUnlockPoints;
-        HeroUnlockValue = HeroUnlock == HeroUnlockTimer ? Math.Clamp(HeroUnlockValue, 0, 120) : Math.Clamp(HeroUnlockValue, 1, 50);
+        HeroUnlockValue = HeroUnlock == HeroUnlockTimer ? Math.Clamp(HeroUnlockValue, 0, MaxHeroSeconds) : Math.Clamp(HeroUnlockValue, 1, 50);
         if (HeroPlayer != HeroPlayerRandom) HeroPlayer = HeroPlayerBest;
+        HeroRespawnValue = Math.Clamp(HeroRespawnValue, -1, MaxHeroSeconds);
         ConquestReinforcements = Math.Clamp(ConquestReinforcements, 10, 500);
         ConquestTimeLimit = Math.Clamp(ConquestTimeLimit, 0, 60);
         CtfCaptures = Math.Clamp(CtfCaptures, 1, 15);
@@ -145,6 +152,7 @@ public sealed class ServerProfile
             ("hrunlock", HeroUnlock),
             ("hrunlockvalue", HeroUnlockValue),
             ("hrplayer", HeroPlayer),
+            ("hrrespawnvalue", HeroRespawnValue),
             ("aiheroes", On(AiHeroes)),
             ("conreinforcements", ConquestReinforcements),
             ("contimelimit", ConquestTimeLimit),
@@ -187,6 +195,7 @@ public sealed class ServerProfile
             case "hrunlock": HeroUnlock = value; break;
             case "hrunlockvalue": HeroUnlockValue = value; break;
             case "hrplayer": HeroPlayer = value; break;
+            case "hrrespawnvalue": HeroRespawnValue = value; break;
             case "aiheroes": AiHeroes = On(); break;
             case "conreinforcements": ConquestReinforcements = value; break;
             case "contimelimit": ConquestTimeLimit = value; break;
@@ -199,6 +208,14 @@ public sealed class ServerProfile
         }
         return true;
     }
+
+    /// <summary>The game options a server answered over rcon (<see cref="Rcon.ServerReader"/>);
+    /// null for a server this launcher runs. An older server lacks newer options and refuses
+    /// them, so only these are sent to it.</summary>
+    [JsonIgnore]
+    public HashSet<string>? AnsweredOptions { get; set; }
+
+    public bool Answers(string command) => AnsweredOptions == null || AnsweredOptions.Contains(command);
 
     public ServerProfile Clone()
     {
