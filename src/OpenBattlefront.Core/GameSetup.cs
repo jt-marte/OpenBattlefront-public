@@ -112,6 +112,13 @@ public sealed class GameSetup
         if (content == null || content.Version == State.ContentVersion) return false;
         if (GameLauncher.IsRunning(Layout)) throw new InvalidOperationException("Close the game first.");
         await Task.Run(() => Content.InstallAsync(content, Layout, progress, ct), ct);
+        // A game copy that never had the launcher's content: a retired folder in it (the Xbox DLC)
+        // is the player's own, so RemoveRetired must leave it. Only remembered here, before the
+        // version below makes it look like the launcher's.
+        if (State.ContentVersion == null)
+            foreach (string folder in GameContent.Retired)
+                if (!State.RetiredContentRemoved.Contains(folder, StringComparer.OrdinalIgnoreCase))
+                    State.RetiredContentRemoved.Add(folder);
         State.ContentVersion = content.Version;
         Save();
         return true;
