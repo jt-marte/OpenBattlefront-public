@@ -17,7 +17,10 @@ public sealed class SharedModLibrary
     private static readonly TimeSpan MaxAge = TimeSpan.FromSeconds(5);
     private readonly string _addOn;
     private readonly FileHashCache _hashes;
+    // _lock guards the published list, briefly; _scanLock runs one scan at a time, which hashes
+    // new files and can take minutes, so the UI reading Folders never waits on it.
     private readonly object _lock = new();
+    private readonly object _scanLock = new();
     private IReadOnlyList<SharedFolder> _folders = Array.Empty<SharedFolder>();
     private DateTime? _scanned;
 
@@ -47,7 +50,7 @@ public sealed class SharedModLibrary
 
     public IReadOnlyList<SharedFolder> Scan()
     {
-        lock (_lock)
+        lock (_scanLock)
         {
             var folders = new List<SharedFolder>();
             string[] names;
@@ -60,8 +63,11 @@ public sealed class SharedModLibrary
                 if (folder != null) folders.Add(folder);
             }
             _hashes.Save();
-            _folders = folders;
-            _scanned = DateTime.UtcNow;
+            lock (_lock)
+            {
+                _folders = folders;
+                _scanned = DateTime.UtcNow;
+            }
             return folders;
         }
     }

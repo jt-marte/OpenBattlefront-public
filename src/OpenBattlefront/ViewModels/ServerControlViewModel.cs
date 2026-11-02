@@ -91,7 +91,7 @@ public sealed class ServerControlViewModel : ObservableObject
         _main = main;
         _servers = servers;
         _remote = remote;
-        _host = new ServerHost(main.Setup.Layout);
+        _host = new ServerHost(() => main.Setup.Layout);
         _host.LineReceived += line => Ui(() => OnServerLine(line));
         _host.Exited += () => Ui(OnServerExited);
         _poll.Tick += async (_, _) => await PollAsync();

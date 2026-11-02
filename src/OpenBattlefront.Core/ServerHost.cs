@@ -42,15 +42,23 @@ public sealed class ServerHost
     /// well inside it. The rest are sent over rcon once the server is up.</summary>
     public const int MapArgumentBudget = 2800;
 
-    private readonly InstallLayout _layout;
+    private readonly Func<InstallLayout> _getLayout;
     private readonly Starter _start;
     private readonly LinkedList<string> _log = new();
 
-    public ServerHost(InstallLayout layout, Starter? start = null)
+    public ServerHost(InstallLayout layout, Starter? start = null) : this(() => layout, start)
     {
-        _layout = layout;
+    }
+
+    /// <param name="layout">Read at each use: Settings can move the install folder while the
+    /// launcher runs.</param>
+    public ServerHost(Func<InstallLayout> layout, Starter? start = null)
+    {
+        _getLayout = layout;
         _start = start ?? SystemServerProcess.Start;
     }
+
+    private InstallLayout _layout => _getLayout();
 
     public IServerProcess? Process { get; private set; }
     public bool IsRunning => Process is { HasExited: false };
