@@ -21,6 +21,9 @@ public sealed class LauncherState
     /// <summary>The version of the included content (GameContent) last put in Game\AddOn.</summary>
     public string? ContentVersion { get; set; }
 
+    /// <summary>Dropped included folders (GameContent.Retired) already taken out of Game\AddOn.</summary>
+    public List<string> RetiredContentRemoved { get; set; } = new();
+
     /// <summary>"game" uses the in-game setting; "vulkan" or "d3d9" override it for each run.</summary>
     public string Renderer { get; set; } = "game";
     public bool Borderless { get; set; } = true;

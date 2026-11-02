@@ -12,7 +12,7 @@ public class GameContentTests
     [InlineData("UPDATE_XBOX", false)]
     [InlineData("AAA-v1.3patch", false)]
     [InlineData("Remaster", false)]
-    public void Only_the_pack_and_the_Xbox_DLC_are_allowed(string folder, bool allowed) =>
+    public void Only_the_pack_and_the_retired_Xbox_DLC_are_allowed(string folder, bool allowed) =>
         Assert.Equal(allowed, GameContent.IsAllowedFolder(folder));
 
     [Theory]
@@ -24,17 +24,18 @@ public class GameContentTests
         Assert.Equal(fromTemp, GameContent.StartedFromTemp(exeDir, @"C:\Users\Pat\AppData\Local\Temp\"));
 
     [Fact]
-    public void Packing_leaves_out_the_Title_Update_the_patch_and_other_mods()
+    public void Packing_leaves_out_the_Xbox_DLC_the_Title_Update_the_patch_and_other_mods()
     {
         using var temp = new TempDir();
         string addOn = FakeAddOn(temp);
+        temp.File(@"AddOn\DLC_XBOX\addme.script", "dlc");
         temp.File(@"AddOn\UPDATE_XBOX\addme.script", "update");
         temp.File(@"AddOn\AAA-v1.3patch\addme.script", "patch");
         temp.File(@"AddOn\Remaster\addme.script", "remaster");
 
         var manifest = ContentManifest.Create(addOn);
-        Assert.Equal(new[] { "BF1", "DLC_XBOX" }, manifest.Folders);
-        Assert.Equal(new[] { "AddOn/BF1/addme.script", "AddOn/BF1/data/_LVL_PC/bf1.lvl", "AddOn/DLC_XBOX/addme.script" },
+        Assert.Equal(new[] { "BF1" }, manifest.Folders);
+        Assert.Equal(new[] { "AddOn/BF1/addme.script", "AddOn/BF1/data/_LVL_PC/bf1.lvl" },
             manifest.Files.Select(f => f.Path));
         Assert.Equal(TempDir.Sha("maps"), manifest.Files[1].Sha256);
         Assert.Equal(4, manifest.Files[1].Size);
@@ -49,7 +50,7 @@ public class GameContentTests
     [Theory]
     [InlineData(@"BF1\setup.exe")]
     [InlineData(@"BF1\data\patch.dll")]
-    [InlineData(@"DLC_XBOX\install.BAT")]
+    [InlineData(@"BF1\tools\install.BAT")]
     public void Packing_refuses_installers(string file)
     {
         using var temp = new TempDir();
@@ -59,10 +60,10 @@ public class GameContentTests
     }
 
     [Fact]
-    public void Packing_needs_both_folders()
+    public void Packing_needs_BF1()
     {
         using var temp = new TempDir();
-        temp.File(@"AddOn\BF1\addme.script");
+        temp.File(@"AddOn\DLC_XBOX\addme.script");
         Assert.Throws<DirectoryNotFoundException>(() => ContentManifest.Create(temp.Sub("AddOn")));
     }
 
@@ -94,7 +95,6 @@ public class GameContentTests
         Assert.True(await setup.InstallContentAsync(new Progress<StepUpdate>(), CancellationToken.None));
         Assert.Equal("bf1", File.ReadAllText(Path.Combine(setup.Layout.AddOn, "BF1", "addme.script")));
         Assert.Equal("maps", File.ReadAllText(Path.Combine(setup.Layout.AddOn, "BF1", "data", "_LVL_PC", "bf1.lvl")));
-        Assert.Equal("dlc", File.ReadAllText(Path.Combine(setup.Layout.AddOn, "DLC_XBOX", "addme.script")));
         Assert.False(Directory.Exists(Path.Combine(setup.Layout.Temp, "content")));
 
         string version = setup.Content.Load()!.Version;
@@ -104,11 +104,63 @@ public class GameContentTests
         // Once is enough, until a launcher brings another version.
         Assert.False(setup.NeedsContent);
         Assert.False(await setup.InstallContentAsync(new Progress<StepUpdate>(), CancellationToken.None));
-        temp.File(@"Content\AddOn\DLC_XBOX\addme.script", "dlc 2");
+        temp.File(@"Content\AddOn\BF1\addme.script", "bf1 2");
         ContentManifest.Create(temp.Sub(@"Content\AddOn")).Save(temp.Sub("Content"));
         Assert.True(setup.NeedsContent);
         Assert.True(await setup.InstallContentAsync(new Progress<StepUpdate>(), CancellationToken.None));
-        Assert.Equal("dlc 2", File.ReadAllText(Path.Combine(setup.Layout.AddOn, "DLC_XBOX", "addme.script")));
+        Assert.Equal("bf1 2", File.ReadAllText(Path.Combine(setup.Layout.AddOn, "BF1", "addme.script")));
+    }
+
+    [Fact]
+    public async Task An_older_package_s_Xbox_DLC_is_skipped()
+    {
+        using var temp = new TempDir();
+        string content = FakeContent(temp);
+        temp.File(@"Content\AddOn\DLC_XBOX\addme.script", "dlc");
+        var manifest = ContentManifest.Load(content);
+        manifest.Folders.Add("DLC_XBOX");
+        manifest.Files.Add(new ManifestFile { Path = "AddOn/DLC_XBOX/addme.script", Size = 3, Sha256 = TempDir.Sha("dlc") });
+        manifest.Save(content);
+        var (setup, _) = Setup(temp, content);
+
+        Assert.True(await setup.InstallContentAsync(new Progress<StepUpdate>(), CancellationToken.None));
+        Assert.Equal("bf1", File.ReadAllText(Path.Combine(setup.Layout.AddOn, "BF1", "addme.script")));
+        Assert.False(Directory.Exists(Path.Combine(setup.Layout.AddOn, "DLC_XBOX")));
+        Assert.Equal(manifest.Version, setup.State.ContentVersion);
+    }
+
+    [Fact]
+    public void The_launcher_s_own_Xbox_DLC_is_removed_once()
+    {
+        using var temp = new TempDir();
+        var (setup, removed) = Setup(temp, FakeContent(temp));
+        temp.File(@"L\Game\AddOn\DLC_XBOX\addme.script", "dlc");
+        temp.File(@"L\Game\AddOn_disabled\DLC_XBOX\addme.script", "dlc off");
+        setup.State.ContentVersion = "0123456789ab"; // an older launcher put its content in place
+
+        var gone = setup.Content.RemoveRetired(setup.Layout, setup.State);
+        Assert.Equal(new[] { Path.Combine(setup.Layout.AddOn, "DLC_XBOX"), Path.Combine(setup.Layout.AddOnDisabled, "DLC_XBOX") }, gone);
+        Assert.Equal(gone, removed);
+        Assert.Equal(new[] { "DLC_XBOX" }, setup.State.RetiredContentRemoved);
+
+        // One the player adds afterwards stays.
+        temp.File(@"L\Game\AddOn\DLC_XBOX\addme.script", "theirs");
+        Assert.Empty(setup.Content.RemoveRetired(setup.Layout, setup.State));
+        Assert.True(File.Exists(temp.Sub(@"L\Game\AddOn\DLC_XBOX\addme.script")));
+    }
+
+    [Fact]
+    public void An_Xbox_DLC_the_launcher_never_installed_stays()
+    {
+        using var temp = new TempDir();
+        var (setup, removed) = Setup(temp, FakeContent(temp));
+        temp.File(@"L\Game\AddOn\DLC_XBOX\addme.script", "theirs");
+
+        Assert.Empty(setup.Content.RemoveRetired(setup.Layout, setup.State)); // no content version yet
+        setup.State.ContentVersion = "0123456789ab";
+        Assert.Empty(setup.Content.RemoveRetired(setup.Layout, setup.State));
+        Assert.Empty(removed);
+        Assert.True(File.Exists(temp.Sub(@"L\Game\AddOn\DLC_XBOX\addme.script")));
     }
 
     [Fact]
@@ -153,7 +205,7 @@ public class GameContentTests
         temp.File(@"Content\evil.txt", "evil");
         var manifest = ContentManifest.Load(content);
         File.WriteAllText(Path.Combine(content, ContentManifest.FileName),
-            manifest.ToJson().Replace("AddOn/DLC_XBOX/addme.script", "AddOn/DLC_XBOX/../../evil.txt"));
+            manifest.ToJson().Replace("AddOn/BF1/addme.script", "AddOn/BF1/../../evil.txt"));
         var (setup, _) = Setup(temp, content);
 
         Assert.True(setup.NeedsContent); // so that the install reports it
@@ -182,13 +234,12 @@ public class GameContentTests
     {
         using var temp = new TempDir();
         var (setup, removed) = Setup(temp, FakeContent(temp));
-        temp.File(@"L\Game\AddOn_disabled\DLC_XBOX\addme.script", "old");
+        temp.File(@"L\Game\AddOn_disabled\BF1\addme.script", "old");
 
         await setup.InstallContentAsync(new Progress<StepUpdate>(), CancellationToken.None);
-        Assert.Equal(new[] { Path.Combine(setup.Layout.AddOnDisabled, "DLC_XBOX") }, removed);
-        Assert.Equal("dlc", File.ReadAllText(Path.Combine(setup.Layout.AddOnDisabled, "DLC_XBOX", "addme.script")));
-        Assert.False(Directory.Exists(Path.Combine(setup.Layout.AddOn, "DLC_XBOX")));
-        Assert.True(Directory.Exists(Path.Combine(setup.Layout.AddOn, "BF1")));
+        Assert.Equal(new[] { Path.Combine(setup.Layout.AddOnDisabled, "BF1") }, removed);
+        Assert.Equal("bf1", File.ReadAllText(Path.Combine(setup.Layout.AddOnDisabled, "BF1", "addme.script")));
+        Assert.False(Directory.Exists(Path.Combine(setup.Layout.AddOn, "BF1")));
     }
 
     [Fact]
@@ -196,8 +247,8 @@ public class GameContentTests
     {
         using var temp = new TempDir();
         var state = new LauncherState { InstallRoot = temp.Sub("L") };
-        temp.File(@"L\Game\AddOn\BF1\addme.script");
-        temp.File(@"L\Game\AddOn_disabled\DLC_XBOX\addme.script");
+        temp.File(@"L\Game\AddOn_disabled\BF1\addme.script");
+        temp.File(@"L\Game\AddOn\DLC_XBOX\addme.script");
         temp.File(@"L\Game\AddOn\UPDATE_XBOX\addme.script");
         temp.File(@"L\Game\AddOn\ABC\addme.script");
         var mods = new ModManager(state.Layout);
@@ -207,18 +258,17 @@ public class GameContentTests
 
         state.ContentVersion = "0123456789ab";
         var list = mods.List(GameContent.Installed(state));
-        Assert.Equal(new[] { "BF1", "DLC_XBOX" }, list.Where(m => m.IsIncluded).Select(m => m.Name));
-        var dlc = list.Single(m => m.Name == "DLC_XBOX");
-        Assert.False(dlc.Enabled);
-        Assert.True(mods.SetEnabled(dlc, true).IsIncluded); // the switch keeps working
+        Assert.Equal(new[] { "BF1" }, list.Where(m => m.IsIncluded).Select(m => m.Name));
+        var bf1 = list.Single(m => m.Name == "BF1");
+        Assert.False(bf1.Enabled);
+        Assert.True(mods.SetEnabled(bf1, true).IsIncluded); // the switch keeps working
     }
 
-    /// <summary>AddOn\BF1 (two files) and AddOn\DLC_XBOX (one).</summary>
+    /// <summary>AddOn\BF1 (two files).</summary>
     private static string FakeAddOn(TempDir temp, string at = "AddOn")
     {
         temp.File($@"{at}\BF1\addme.script", "bf1");
         temp.File($@"{at}\BF1\data\_LVL_PC\bf1.lvl", "maps");
-        temp.File($@"{at}\DLC_XBOX\addme.script", "dlc");
         return temp.Sub(at);
     }
 

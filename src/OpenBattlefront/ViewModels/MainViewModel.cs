@@ -280,19 +280,41 @@ public sealed class MainViewModel : ObservableObject
         System.Windows.Application.Current.Shutdown();
     }
 
-    /// <summary>Mods as their installers left them, put right (ModFixups): BF1's Classic Conquest
-    /// soldiers copied into its folder so a server and friends get them with it.</summary>
+    /// <summary>Mods as their installers left them, put right (ModFixups): BF1's files from the
+    /// base game linked into its folder so a server and friends get them with it.</summary>
     private async Task CompleteModsAsync()
     {
         if (!Setup.IsReady) return;
         try
         {
-            if (await Task.Run(() => ModFixups.CompleteBf1(Setup.Layout)))
-                ShowNotice("Copied BF1's Classic Conquest soldiers (swbf1.lvl) into its mod folder, so your server and friends get them too.");
+            var added = await Task.Run(() => ModFixups.CompleteBf1(Setup.Layout));
+            if (added.Count > 0)
+                ShowNotice($"Put BF1's heroes, extra soldiers and Classic Conquest files ({added.Count}) into its mod folder, so your server and friends get them too.");
         }
-        catch (IOException e)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            ShowNotice("Couldn't copy BF1's Classic Conquest soldiers into its mod folder: " + e.Message, error: true);
+            ShowNotice("Couldn't put BF1's files from the base game into its mod folder: " + e.Message, error: true);
+        }
+    }
+
+    /// <summary>The Xbox DLC no longer comes with the launcher: the copy it put in place goes to
+    /// the Recycle Bin once.</summary>
+    private void RemoveRetiredContent()
+    {
+        if (!Setup.State.ImportComplete) return;
+        try
+        {
+            var removed = Setup.Content.RemoveRetired(Setup.Layout, Setup.State);
+            Setup.Save();
+            if (removed.Count > 0)
+            {
+                ShowNotice("Removed the Xbox DLC (DLC_XBOX): it no longer comes with the launcher. It's in the Recycle Bin.");
+                Mods.Refresh();
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            ShowError(e);
         }
     }
 
@@ -305,6 +327,7 @@ public sealed class MainViewModel : ObservableObject
         if (!Directory.Exists(Setup.Content.Dir) && GameContent.StartedFromTemp(AppContext.BaseDirectory, Path.GetTempPath()))
             ShowNotice(GameContent.UnzipFirst, error: true);
         await InstallContentAsync();
+        RemoveRetiredContent();
         await CompleteModsAsync();
         if (Setup.IsReady && Setup.State.CheckUpdatesOnStart) await Play.CheckForUpdateAsync(silent: true);
         else if (Setup.State.ImportComplete && !Setup.IsReady) await Play.LoadLatestAsync();
@@ -323,8 +346,8 @@ public sealed class MainViewModel : ObservableObject
         else await control.DetachAsync();
     }
 
-    /// <summary>The Conversion Pack and the Xbox DLC come with the launcher: put them in the game
-    /// copy once it is imported, and again when a launcher brings a new version of them.</summary>
+    /// <summary>The Conversion Pack comes with the launcher: put it in the game copy once it is
+    /// imported, and again when a launcher brings a new version of it.</summary>
     private async Task InstallContentAsync()
     {
         if (!Setup.NeedsContent) return;

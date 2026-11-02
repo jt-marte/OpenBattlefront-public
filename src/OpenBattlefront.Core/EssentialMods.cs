@@ -14,7 +14,7 @@ public sealed record CatalogMod(
 
 public static class EssentialMods
 {
-    /// <summary>Empty for now: the Battlefront Conversion Pack and the Xbox DLC come inside the
+    /// <summary>Empty for now: the Battlefront Conversion Pack comes inside the
     /// launcher's package (GameContent), and the Xbox Title Update is left out on purpose. (The
     /// Remaster is not offered: it replaces OpenSWBF2's own menus, and its AI heroes and award
     /// options are built in.) The page and the download window come back when a mod is listed.</summary>
