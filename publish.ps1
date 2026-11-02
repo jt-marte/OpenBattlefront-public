@@ -7,7 +7,7 @@ Builds the launcher as one exe in dist\.
 
   .\publish.ps1 -Content [<AddOn dir>]
                          also builds dist\OpenBattlefront-<version>.zip: the exe and the included
-                         content (the Conversion Pack's BF1 and the Xbox DLC's DLC_XBOX, nothing else)
+                         content (the Conversion Pack's BF1, nothing else)
                          under Content\, with Content\content.json. The AddOn dir defaults to the
                          launcher's own game copy. Combine with -Small as needed.
 #>

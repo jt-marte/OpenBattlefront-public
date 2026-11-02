@@ -67,7 +67,7 @@ public sealed class ContentManifest
     }
 
     /// <summary>The AddOn folder a path is in (BF1 for AddOn/BF1/addme.script), or null.</summary>
-    private static string? FolderOf(string path)
+    internal static string? FolderOf(string path)
     {
         string[] parts = path.Split('/');
         return parts.Length >= 3 && parts[0].Equals("AddOn", StringComparison.OrdinalIgnoreCase) ? parts[1] : null;
@@ -102,15 +102,20 @@ public sealed class ContentManifest
 }
 
 /// <summary>
-/// The included content: the Battlefront Conversion Pack (BF1) and the Xbox DLC (DLC_XBOX) ship
-/// in the launcher's package under Content\, and are copied into Game\AddOn with no download.
-/// Only those two folders are allowed: never the Xbox Title Update or the unofficial 1.3 patch,
-/// and never programs.
+/// The included content: the Battlefront Conversion Pack (BF1) ships in the launcher's package
+/// under Content\, and is copied into Game\AddOn with no download. Only that folder is allowed:
+/// never the Xbox Title Update or the unofficial 1.3 patch, and never programs.
 /// </summary>
 public sealed class GameContent
 {
-    public static readonly IReadOnlyList<string> Folders = new[] { "BF1", "DLC_XBOX" };
-    public const string AddedNotice = "Added the included content: Battlefront Conversion Pack and Xbox DLC.";
+    public static readonly IReadOnlyList<string> Folders = new[] { "BF1" };
+
+    /// <summary>Folders older packages included and the launcher has dropped: the Xbox DLC
+    /// (0.3.7). An older content.json naming one still loads, its files are skipped, and a copy
+    /// the launcher put in place goes to the Recycle Bin once (RemoveRetired).</summary>
+    public static readonly IReadOnlyList<string> Retired = new[] { "DLC_XBOX" };
+
+    public const string AddedNotice = "Added the included content: the Battlefront Conversion Pack.";
 
     private const string Title = "Adding the included content";
     private const string DownloadAgain = "Download the launcher package again.";
@@ -131,7 +136,7 @@ public sealed class GameContent
 
     public const string UnzipFirst =
         "Unzip the whole OpenBattlefront download first, then start OpenBattlefront.exe from that folder: " +
-        "the Conversion Pack and Xbox DLC come with it.";
+        "the Conversion Pack comes with it.";
 
     /// <summary>Windows starts an exe straight out of a zip from a temp folder, without the rest of
     /// the zip, so the included content isn't beside it.</summary>
@@ -140,7 +145,32 @@ public sealed class GameContent
 
     public string Dir { get; }
 
-    public static bool IsAllowedFolder(string folder) => Folders.Contains(folder, StringComparer.OrdinalIgnoreCase);
+    public static bool IsAllowedFolder(string folder) =>
+        Folders.Contains(folder, StringComparer.OrdinalIgnoreCase) || IsRetired(folder);
+
+    public static bool IsRetired(string folder) => Retired.Contains(folder, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Sends each retired folder the launcher put in place (it had, once a content
+    /// version is saved) to the Recycle Bin, switched on or off, and remembers it so a copy the
+    /// player adds later stays. On a game copy that never had the launcher's content there is
+    /// nothing of the launcher's to remove, so it is only remembered. The caller saves the state.</summary>
+    public IReadOnlyList<string> RemoveRetired(InstallLayout layout, LauncherState state)
+    {
+        var removed = new List<string>();
+        foreach (string folder in Retired)
+        {
+            if (state.RetiredContentRemoved.Contains(folder, StringComparer.OrdinalIgnoreCase)) continue;
+            if (state.ContentVersion != null)
+                foreach (string dir in new[] { Path.Combine(layout.AddOn, folder), Path.Combine(layout.AddOnDisabled, folder) })
+                    if (Directory.Exists(dir))
+                    {
+                        _remove(dir);
+                        removed.Add(dir);
+                    }
+            state.RetiredContentRemoved.Add(folder);
+        }
+        return removed;
+    }
 
     public static bool IsProgram(string path) => Programs.Any(ext => path.EndsWith(ext, StringComparison.OrdinalIgnoreCase));
 
@@ -157,7 +187,9 @@ public sealed class GameContent
     public async Task InstallAsync(ContentManifest manifest, InstallLayout layout, IProgress<StepUpdate>? progress, CancellationToken ct)
     {
         manifest.Validate();
-        long total = manifest.Files.Sum(f => f.Size);
+        var folders = manifest.Folders.Where(f => !IsRetired(f)).ToList();
+        var files = manifest.Files.Where(f => !IsRetired(ContentManifest.FolderOf(f.Path)!)).ToList();
+        long total = files.Sum(f => f.Size);
         Directory.CreateDirectory(layout.Root);
         long free = Importer.FreeBytes(layout.Root);
         if (total + SpareBytes > free)
@@ -167,9 +199,9 @@ public sealed class GameContent
         if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
         try
         {
-            await CopyAsync(manifest, staging, total, progress, ct);
+            await CopyAsync(files, staging, total, progress, ct);
             progress?.Report(new StepUpdate(Title, "Putting it in place"));
-            foreach (string folder in manifest.Folders)
+            foreach (string folder in folders)
                 Swap(layout, folder, Path.Combine(staging, folder));
         }
         finally
@@ -178,7 +210,7 @@ public sealed class GameContent
         }
     }
 
-    private async Task CopyAsync(ContentManifest manifest, string staging, long total, IProgress<StepUpdate>? progress, CancellationToken ct)
+    private async Task CopyAsync(IReadOnlyList<ManifestFile> files, string staging, long total, IProgress<StepUpdate>? progress, CancellationToken ct)
     {
         var buffer = new byte[1 << 20];
         long done = 0;
@@ -186,7 +218,7 @@ public sealed class GameContent
         var clock = Stopwatch.StartNew();
         string root = Path.GetFullPath(staging) + Path.DirectorySeparatorChar;
 
-        foreach (var file in manifest.Files)
+        foreach (var file in files)
         {
             ct.ThrowIfCancellationRequested();
             string from = Path.Combine(Dir, file.Path.Replace('/', '\\'));

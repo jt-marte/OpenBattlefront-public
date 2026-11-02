@@ -29,7 +29,7 @@ To switch to another copy later, drop it on the Play page.
 - **Updates:** the launcher updates itself from this repo's releases. New OpenSWBF2 builds install
   in one click, and the previous build is kept so you can roll back.
 - **Mods:** drop a mod folder or `.zip`, switch mods on and off, and remove them to the Recycle Bin.
-  The full zip also brings the Battlefront Conversion Pack and the Xbox DLC.
+  The full zip also brings the Battlefront Conversion Pack.
 - **Multiplayer:** Direct Connect and a lobby. The mods a server uses download before the match.
 - **Server manager:** host a dedicated server, or connect to one as admin, the Docker server too.
   Build a playlist of ground and space battles by era and mode. Start, end, skip or restart
@@ -64,8 +64,8 @@ dotnet test
   (`<sha256> *OpenBattlefront.exe`). Every launcher, the full zip's included, updates itself from
   the latest one.
 - `-Content [<AddOn dir>]` also makes the full zip, `dist\OpenBattlefront-<version>.zip`: the exe
-  plus `Content\AddOn\BF1`, `Content\AddOn\DLC_XBOX` and `Content\content.json` (sizes and
-  SHA-256s). It is shared privately, never attached to a release here. Only those two folders are
+  plus `Content\AddOn\BF1` and `Content\content.json` (sizes and
+  SHA-256s). It is shared privately, never attached to a release here. Only that folder is
   taken: never the Xbox Title Update (`UPDATE_XBOX`), the unofficial 1.3 patch, or any `.exe`,
   `.dll` or `.bat`.
 - For development, these switches go after `OpenBattlefront.exe`:
