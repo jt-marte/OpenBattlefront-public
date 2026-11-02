@@ -103,7 +103,7 @@ public static partial class LauncherUpdate
     /// <summary>Deletes what an update left behind: exe.old, once the old launcher has exited.</summary>
     public static void CleanUp(string exe)
     {
-        foreach (string leftover in new[] { exe + ".old", exe + ".download" })
+        foreach (string leftover in new[] { exe + ".old", exe + ".download", exe + ".download.partial" })
         {
             try
             {
