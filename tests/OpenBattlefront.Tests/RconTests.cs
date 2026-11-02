@@ -250,14 +250,91 @@ public class RconTests
         Assert.Equal(ServerPhase.Lobby, (await client.StateAsync()).Phase);
         Assert.True(client.IsLoggedIn);
 
-        // A command that changes the game is not: the caller hears it timed out, and the next one works.
+        // A command that changes the game is not: the caller hears it timed out, and the next one
+        // works. The timeout itself sends no login; "not logged in" does.
         server.HasSlot = false;
         server.LoggedIn = false;
         server.Lines.Clear();
         await Assert.ThrowsAsync<TimeoutException>(() => client.EndMatchAsync());
-        Assert.Equal(new[] { "/admin /login secret" }, server.Lines);
+        Assert.Empty(server.Lines);
         await client.EndMatchAsync();
-        Assert.Equal("/admin /endgame", server.Lines[^1]);
+        Assert.Equal(new[] { "/admin /endgame", "/admin /login secret", "/admin /endgame" }, server.Lines);
+    }
+
+    [Fact]
+    public async Task A_busy_server_keeps_the_login_through_a_map_load()
+    {
+        // The server stalls while it loads a map, then answers every request it queued. The login
+        // outlasts that, so getting answers again takes no new login.
+        using var server = new FakeRconServer();
+        server.Handle = command => command == "/state"
+            ? new[] { "#state", "state=lobby hold=1 players=0/0/0 time=-1 tickets=0/0 scores=0/0 map=kas2g_con next=" }
+            : null;
+        await using var client = new RconClient(server.EndPoint) { ReplyTimeout = TimeSpan.FromMilliseconds(200) };
+        var pushed = new List<string>();
+        client.Pushed += line => { lock (pushed) pushed.Add(line); };
+        await client.ConnectAsync("secret", CancellationToken.None);
+
+        server.Frozen = true;
+        await Assert.ThrowsAsync<TimeoutException>(() => client.StateAsync());
+        server.Frozen = false;
+        Assert.Equal(ServerPhase.Lobby, (await client.StateAsync()).Phase);
+        Assert.True(client.IsLoggedIn);
+        await Task.Delay(300);
+        Assert.Single(server.Lines, "/admin /login secret");
+        lock (pushed) Assert.Empty(pushed);
+    }
+
+    [Fact]
+    public async Task A_login_goes_out_once_though_its_answer_is_late()
+    {
+        // Each copy of a /login counts against the server's 5 logins in 10 s, so a slow answer
+        // isn't asked for again
+        using var server = new FakeRconServer { ReplyDelay = TimeSpan.FromMilliseconds(300) };
+        await using var client = new RconClient(server.EndPoint) { ReplyTimeout = TimeSpan.FromMilliseconds(200) };
+        var pushed = new List<string>();
+        client.Pushed += line => { lock (pushed) pushed.Add(line); };
+        await client.ConnectAsync("secret", CancellationToken.None);
+        Assert.True(client.IsLoggedIn);
+        await Task.Delay(500);
+        Assert.Equal(new[] { "/admin /login secret" }, server.Lines);
+        // The late answers to the hello and heartbeat copies are no chat or events either
+        lock (pushed) Assert.Empty(pushed);
+    }
+
+    [Fact]
+    public async Task A_rate_limited_login_waits_out_the_window()
+    {
+        using var server = new FakeRconServer { RefuseLogins = true };
+        await using var client = new RconClient(server.EndPoint) { ReplyTimeout = TimeSpan.FromMilliseconds(200) };
+        var e = await Assert.ThrowsAsync<RconException>(() => client.ConnectAsync("secret", CancellationToken.None));
+        Assert.StartsWith("Too many", e.Message);
+
+        // Polls asking again right away are refused here, without a login the server would count
+        server.RefuseLogins = false;
+        e = await Assert.ThrowsAsync<RconException>(() => client.ConnectAsync("secret", CancellationToken.None));
+        Assert.StartsWith("Too many", e.Message);
+        Assert.Equal(new[] { "/admin /login secret" }, server.Lines);
+        Assert.False(client.IsLoggedIn);
+    }
+
+    [Fact]
+    public async Task Requests_told_not_logged_in_side_by_side_log_in_once()
+    {
+        using var server = new FakeRconServer();
+        server.Handle = command => command switch
+        {
+            "/state" => new[] { "#state", "state=playing hold=0 players=1/0/1 time=600 tickets=100/90 scores=3/1 map=geo1c_con next=kas2g_ctf" },
+            "/playerinfo" => new[] { "#playerinfo", "p 2 1 1 10 2 1 40 Jay", "end 1" },
+            _ => null,
+        };
+        await using var client = new RconClient(server.EndPoint) { ReplyTimeout = TimeSpan.FromSeconds(1) };
+        await client.ConnectAsync("secret", CancellationToken.None);
+
+        server.LoggedIn = false;
+        server.Lines.Clear();
+        await Task.WhenAll(client.StateAsync(), client.PlayersAsync(), client.StateAsync());
+        Assert.Single(server.Lines, "/admin /login secret");
     }
 
     [Fact]
@@ -341,6 +418,15 @@ internal sealed class FakeRconServer : IDisposable
     public List<string[]> GroupsBeforeReply { get; } = new();
     public Func<string, IEnumerable<string>?> Handle { get; set; } = _ => null;
 
+    /// <summary>Loading a map: requests wait unread, then each one is answered.</summary>
+    public bool Frozen { get; set; }
+
+    /// <summary>Every request is answered this late (each copy of it too).</summary>
+    public TimeSpan ReplyDelay { get; set; }
+
+    /// <summary>Logins get the game's "login rate limited".</summary>
+    public bool RefuseLogins { get; set; }
+
     private async Task LoopAsync()
     {
         while (!_stop.IsCancellationRequested)
@@ -348,12 +434,24 @@ internal sealed class FakeRconServer : IDisposable
             UdpReceiveResult received;
             try { received = await _udp.ReceiveAsync(_stop.Token); }
             catch (Exception) { return; }
+            while (Frozen && !_stop.IsCancellationRequested) await Task.Delay(10);
             byte[] p = received.Buffer;
             if (p.Length < 7 || p[0] != RconPacket.ConsoleType) continue;
             Groups.Add(p[1] | p[2] << 8);
             async Task Reply(IEnumerable<string> lines)
             {
-                foreach (byte[] part in Split(RconPacket.EncodeReply(_key, lines), SplitAt))
+                var parts = Split(RconPacket.EncodeReply(_key, lines), SplitAt);
+                if (ReplyDelay > TimeSpan.Zero)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(ReplyDelay);
+                        try { foreach (byte[] part in parts) await _udp.SendAsync(part, received.RemoteEndPoint); }
+                        catch (ObjectDisposedException) { }
+                    });
+                    return;
+                }
+                foreach (byte[] part in parts)
                     await _udp.SendAsync(part, received.RemoteEndPoint);
             }
             bool keyOk = p.Length >= 8 && (p[7] == _key || p[7] == _previousKey);
@@ -373,7 +471,8 @@ internal sealed class FakeRconServer : IDisposable
                     Lines.Add(line);
                     string command = line.StartsWith("/admin ") ? line[7..] : "";
                     List<string> reply;
-                    if (command.StartsWith("/login "))
+                    if (command.StartsWith("/login ") && RefuseLogins) reply = new() { "login rate limited" };
+                    else if (command.StartsWith("/login "))
                     {
                         LoggedIn = command[7..] == Password;
                         reply = new() { LoggedIn ? "logged in" : "login failed" };
