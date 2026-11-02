@@ -11,17 +11,22 @@ public sealed class RconException : Exception
 /// <summary>
 /// Remote admin over the game port (UDP), in the retail packet format (<see cref="RconPacket"/>).
 /// Hello gets the admin key, a heartbeat takes one of the server's three admin slots and keeps it
-/// (every 15 s; a slot idle for 60 s can be taken), then /login. Commands go one at a time; a
-/// reply group that isn't the answer to the one in flight is a pushed message (chat, game started,
-/// players joining) and goes to <see cref="Pushed"/>.
+/// (every 15 s; a slot idle for 60 s can be taken), then /login. The login lasts across map
+/// changes, so it is sent again only when the server says "not logged in". Commands go one at a
+/// time; a reply group that isn't the answer to the one in flight is a pushed message (chat, game
+/// started, players joining) and goes to <see cref="Pushed"/>.
 /// </summary>
 public sealed class RconClient : IServerAdmin
 {
     public static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(15);
 
+    /// <summary>The server takes 5 logins from one address in this long and refuses the rest.</summary>
+    public static readonly TimeSpan LoginRateWindow = TimeSpan.FromSeconds(10);
+
     private readonly IPEndPoint _server;
     private readonly UdpClient _udp;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly SemaphoreSlim _loginGate = new(1, 1);
     private readonly CancellationTokenSource _stop = new();
     private readonly RconAssembler _assembler = new();
     private Task? _receiving;
@@ -30,6 +35,8 @@ public sealed class RconClient : IServerAdmin
     private int _group = Random.Shared.Next(1, 60000);
     private byte _key;
     private string? _password;
+    private int _logins;
+    private DateTime _loginAllowedAt;
 
     public RconClient(IPEndPoint server)
     {
@@ -61,28 +68,42 @@ public sealed class RconClient : IServerAdmin
     public async Task ConnectAsync(string password, CancellationToken ct)
     {
         _receiving ??= Task.Run(ReceiveLoopAsync);
-        await RequestAsync((group, _) => RconPacket.EncodeHello(group), r => r.Lines.Contains("hello"), retry: true, ct);
-        await RequestAsync(RconPacket.EncodeHeartbeat, r => r.Lines.Count == 0, retry: true, ct);
+        await TakeSlotAsync(ct);
         await LoginAsync(password, ct);
         _beating ??= Task.Run(HeartbeatLoopAsync);
     }
 
     public async Task LoginAsync(string password, CancellationToken ct)
     {
-        var lines = await SendRawAsync("/login " + password, r => r.Lines.Any(IsLoginLine), retry: true, ct);
-        if (lines.Contains("logged in"))
+        // After "login rate limited" the server refuses every login until its window is over, so a
+        // poll asking again before then gets the same answer here
+        if (DateTime.UtcNow < _loginAllowedAt) throw RateLimited();
+        // One datagram, given the time of three tries: a busy server answers every copy it was sent
+        // (late), and each copy counts as a login
+        string line = RconPacket.AdminPrefix + "/login " + password;
+        var reply = await RequestAsync((group, key) => RconPacket.EncodeLine(group, key, line), r => r.Lines.Any(IsLoginLine),
+            sends: 1, ReplyTimeout * 3, ct);
+        if (reply.Lines.Contains("logged in"))
         {
             _password = password;
             IsLoggedIn = true;
+            Interlocked.Increment(ref _logins);
             return;
         }
         IsLoggedIn = false;
-        throw new RconException(lines.Contains("login rate limited")
-            ? "Too many login attempts. Wait ten seconds and try again."
-            : "The server didn't accept the admin password.");
+        if (!reply.Lines.Contains("login rate limited")) throw new RconException("The server didn't accept the admin password.");
+        _loginAllowedAt = DateTime.UtcNow + LoginRateWindow;
+        throw RateLimited();
     }
 
+    private static RconException RateLimited() => new("Too many login attempts. Wait ten seconds and try again.");
+
     private static bool IsLoginLine(string line) => line is "logged in" or "login failed" or "login rate limited";
+
+    /// <summary>A late answer to a hello, a login or a line sent without one: the server never
+    /// pushes these by itself.</summary>
+    private static bool IsSessionAnswer(RconReply reply) =>
+        reply.Lines.Count > 0 && reply.Lines.All(l => l is "hello" or "not logged in" || IsLoginLine(l));
 
     // Typed commands. The new ones reply with a "#command" section; the retail ones with free text.
 
@@ -187,6 +208,7 @@ public sealed class RconClient : IServerAdmin
     {
         string line = RconPacket.AdminPrefix + command;
         bool canRelogin = _password != null && !command.StartsWith("/login ", StringComparison.Ordinal);
+        int logins = _logins;
         RconReply reply;
         try
         {
@@ -194,41 +216,65 @@ public sealed class RconClient : IServerAdmin
         }
         catch (TimeoutException) when (canRelogin)
         {
-            // The server ignores lines from a peer without an admin slot (another admin took it, or
-            // it restarted). Take one again; a command that changes the game is not sent twice.
-            await ReloginAsync(ct);
+            // No answer: the server is busy (it stalls while it loads a map, then answers every copy
+            // it was sent), gave this admin slot to another admin, or restarted with a new key. Take
+            // the key and a slot again, but don't log in: the login outlasts a map change, and a
+            // server that lost it says so below. A command that changes the game is not sent twice.
+            await TakeSlotAsync(ct);
             if (!retry) throw;
             reply = await RequestAsync((group, key) => RconPacket.EncodeLine(group, key, line), isReply, retry, ct);
         }
         if (reply.Lines.Contains("not logged in") && canRelogin)
         {
-            await ReloginAsync(ct);
+            await ReloginAsync(logins, ct);
             reply = await RequestAsync((group, key) => RconPacket.EncodeLine(group, key, line), isReply, retry, ct);
         }
         return reply.Lines;
     }
 
-    private async Task ReloginAsync(CancellationToken ct)
+    /// <summary>Hello answers with the current admin key whatever key it carries; a heartbeat takes
+    /// one of the server's admin slots, or keeps this one's. Neither logs in or out.</summary>
+    private async Task TakeSlotAsync(CancellationToken ct)
     {
-        IsLoggedIn = false;
+        await RequestAsync((group, _) => RconPacket.EncodeHello(group), r => r.Lines.Contains("hello"), retry: true, ct);
         await RequestAsync(RconPacket.EncodeHeartbeat, r => r.Lines.Count == 0, retry: true, ct);
-        await LoginAsync(_password!, ct);
     }
 
+    /// <summary>Logs in once for every request that was told "not logged in": one that logged in
+    /// after this request went out did it for both (the polls and a command run side by side).</summary>
+    private async Task ReloginAsync(int logins, CancellationToken ct)
+    {
+        await _loginGate.WaitAsync(ct);
+        try
+        {
+            if (_logins != logins) return;
+            IsLoggedIn = false;
+            await LoginAsync(_password!, ct);
+        }
+        finally
+        {
+            _loginGate.Release();
+        }
+    }
+
+    private Task<RconReply> RequestAsync(Func<int, byte, byte[]> packet, Func<RconReply, bool> isReply, bool retry, CancellationToken ct) =>
+        RequestAsync(packet, isReply, retry ? 3 : 1, ReplyTimeout, ct);
+
     /// <param name="packet">Builds the datagram from a new group number and the current key.</param>
-    private async Task<RconReply> RequestAsync(Func<int, byte, byte[]> packet, Func<RconReply, bool> isReply, bool retry, CancellationToken ct)
+    /// <param name="sends">How many times it goes out, <paramref name="wait"/> apart, until answered.</param>
+    private async Task<RconReply> RequestAsync(Func<int, byte, byte[]> packet, Func<RconReply, bool> isReply, int sends, TimeSpan wait, CancellationToken ct)
     {
         _receiving ??= Task.Run(ReceiveLoopAsync);
         await _gate.WaitAsync(ct);
         try
         {
-            for (int attempt = 0; attempt < (retry ? 3 : 1); attempt++)
+            for (int attempt = 0; attempt < sends; attempt++)
             {
                 var pending = new Pending(isReply);
                 _pending = pending;
                 _group = (_group + 1) & 0xFFFF;
                 await _udp.SendAsync(packet(_group, _key), ct);
-                var done = await Task.WhenAny(pending.Done.Task, Task.Delay(ReplyTimeout, ct));
+                var done = await Task.WhenAny(pending.Done.Task, Task.Delay(wait, ct));
                 ct.ThrowIfCancellationRequested();
                 if (done == pending.Done.Task) return await pending.Done.Task;
             }
@@ -256,7 +302,7 @@ public sealed class RconClient : IServerAdmin
             _key = reply.Key;
             var pending = _pending;
             if (pending != null && pending.IsReply(reply) && pending.Done.TrySetResult(reply)) continue;
-            if (IsLateAnswer(reply)) continue;
+            if (IsLateAnswer(reply) || IsSessionAnswer(reply)) continue;
             foreach (string line in reply.Lines) Pushed?.Invoke(line);
         }
     }
