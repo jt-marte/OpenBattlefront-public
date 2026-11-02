@@ -49,6 +49,7 @@ public sealed class ServerControlViewModel : ObservableObject
     private ModUploadClient? _remoteMods;
     private ServerAddress? _remoteAddress;
     private string _remotePassword = "";
+    private int _unsupportedPolls;
     private bool _keepsSettings;
     private bool _remoteLobby;
     private bool _joining;
@@ -1296,12 +1297,13 @@ public sealed class ServerControlViewModel : ObservableObject
     private async Task PollAsync()
     {
         var admin = _admin;
-        if (admin == null || _polling || !admin.IsLoggedIn && !IsRemote) return;
+        if (admin == null || _polling) return;
         _polling = true;
         try
         {
-            // A server elsewhere that restarted its game forgot the login: take it again
-            if (!admin.IsLoggedIn) await admin.ConnectAsync(_remotePassword, CancellationToken.None);
+            // A server elsewhere that restarted its game forgot the login, and a login whose answer
+            // came too late left this one out: take it again
+            if (!admin.IsLoggedIn) await admin.ConnectAsync(IsRemote ? _remotePassword : Profile.AdminPassword, CancellationToken.None);
             bool wasDown = Status == ServerStatus.NotAnswering;
             ApplyState(await admin.StateAsync());
             _lastAnswer = DateTime.UtcNow;
@@ -1309,9 +1311,12 @@ public sealed class ServerControlViewModel : ObservableObject
             if (_pollCount++ % 2 == 0 || Tab == ControlTab.Players) SetPlayers(await admin.PlayersAsync());
             if (IsRemote) await ReadRemoteStatusAsync();
             UpdateSharing();
+            _unsupportedPolls = 0;
         }
         catch (NotSupportedException e)
         {
+            // An old server says so every time; one stray answer taken for a reply only once
+            if (++_unsupportedPolls < 3) return;
             _poll.Stop();
             _main.ShowNotice(e.Message, error: true);
         }

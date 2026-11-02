@@ -183,26 +183,34 @@ public sealed class RconClient : IServerAdmin
     /// <summary>A setting with no value given: the game answers with what it is. Reading changes
     /// nothing, so it can be asked again.</summary>
     private Task<IReadOnlyList<string>> ReadAsync(string name, CancellationToken ct) =>
-        SendRawAsync("/" + name, r => !IsLateAnswer(r) && !RconReplies.LooksLikePush(r.Lines), retry: true, ct);
+        SendRawAsync("/" + name, r => r.Lines.Count > 0 && !IsLateAnswer(r) && !IsOtherSessionAnswer(r) && !RconReplies.LooksLikePush(r.Lines), retry: true, ct);
 
     public Task ShutdownAsync(CancellationToken ct = default) => CommandAsync("/shutdown", ct);
 
     /// <summary>A retail command. Its reply is free text, so take the first group that isn't a
     /// pushed message; the commands that change the game are never retried.</summary>
     public Task<IReadOnlyList<string>> CommandAsync(string command, CancellationToken ct = default) =>
-        SendRawAsync(command, r => !IsLateAnswer(r) && !RconReplies.LooksLikePush(r.Lines), retry: false, ct);
+        SendRawAsync(command, r => !IsLateAnswer(r) && !IsOtherSessionAnswer(r) && !RconReplies.LooksLikePush(r.Lines), retry: false, ct);
 
     private static string Result(IReadOnlyList<string> lines, string command) =>
         RconReplies.Section(lines, command)?.FirstOrDefault() ?? "";
 
     /// <summary>The reply with this command's "#tag" section, or (from a build without the
-    /// command) a plain refusal such as "command not found".</summary>
+    /// command) a plain refusal such as "command not found": never a bare number, which answers
+    /// a setting's read.</summary>
     private Task<IReadOnlyList<string>> TaggedAsync(string tag, string command, bool retry, CancellationToken ct) =>
-        SendRawAsync(command, r => RconReplies.HasSection(r.Lines, tag) || r.Lines.Count > 0 && !IsLateAnswer(r) && !RconReplies.LooksLikePush(r.Lines), retry, ct);
+        SendRawAsync(command, r => RconReplies.HasSection(r.Lines, tag) ||
+                                   r.Lines.Count > 0 && !IsLateAnswer(r) && !IsOtherSessionAnswer(r) &&
+                                   !RconReplies.LooksLikePush(r.Lines) && RconReplies.ParseNumber(r.Lines) == null,
+                     retry, ct);
 
     /// <summary>A "#command" reply nobody is waiting for: the answer to a request that timed out
     /// (the server stalls while it loads a map, then answers every copy it was sent).</summary>
     private static bool IsLateAnswer(RconReply reply) => reply.Lines.Count > 0 && reply.Lines[0].StartsWith('#');
+
+    /// <summary>The answer to a hello or a login, which only those requests take. "Not logged in"
+    /// answers any line and starts a login, so it stays.</summary>
+    private static bool IsOtherSessionAnswer(RconReply reply) => IsSessionAnswer(reply) && !reply.Lines.Contains("not logged in");
 
     private async Task<IReadOnlyList<string>> SendRawAsync(string command, Func<RconReply, bool> isReply, bool retry, CancellationToken ct)
     {
@@ -276,7 +284,20 @@ public sealed class RconClient : IServerAdmin
                 await _udp.SendAsync(packet(_group, _key), ct);
                 var done = await Task.WhenAny(pending.Done.Task, Task.Delay(wait, ct));
                 ct.ThrowIfCancellationRequested();
-                if (done == pending.Done.Task) return await pending.Done.Task;
+                if (done == pending.Done.Task)
+                {
+                    var reply = await pending.Done.Task;
+                    // A busy server answers every copy it was sent, and a setting's answer is a bare
+                    // number: let the other copies' answers go by rather than be taken for the next
+                    // request's. Pushed messages still get through.
+                    for (int stray = 0; stray < attempt; stray++)
+                    {
+                        var sink = new Pending(r => !RconReplies.LooksLikePush(r.Lines));
+                        _pending = sink;
+                        if (await Task.WhenAny(sink.Done.Task, Task.Delay(wait, ct)) != sink.Done.Task) break;
+                    }
+                    return reply;
+                }
             }
             throw new TimeoutException($"The server at {_server} didn't answer.");
         }

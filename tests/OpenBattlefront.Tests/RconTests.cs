@@ -186,6 +186,26 @@ public class RconTests
     }
 
     [Fact]
+    public async Task A_slow_read_s_second_answer_is_not_the_next_read_s()
+    {
+        // Each answer comes after the client has sent its second copy, and the server answers both:
+        // a setting's answer is a bare number, so the spare one must not land on the next read.
+        using var server = new FakeRconServer();
+        server.Handle = command => command switch
+        {
+            "/difficulty" => new[] { "2" },
+            "/teamdamage" => new[] { "1" },
+            _ => null,
+        };
+        await using var client = new RconClient(server.EndPoint) { ReplyTimeout = TimeSpan.FromMilliseconds(200) };
+        await client.ConnectAsync("secret", CancellationToken.None);
+        server.ReplyDelay = TimeSpan.FromMilliseconds(300);
+
+        Assert.Equal(2, await client.ReadOptionAsync("difficulty"));
+        Assert.Equal(1, await client.ReadOptionAsync("teamdamage"));
+    }
+
+    [Fact]
     public async Task A_wrong_password_is_refused()
     {
         using var server = new FakeRconServer();
