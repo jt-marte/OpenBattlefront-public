@@ -74,38 +74,48 @@ public sealed partial class ReleaseClient
     {
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         string partial = destination + ".partial";
-        using (var response = await _http.GetAsync(release.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false))
+        try
         {
-            response.EnsureSuccessStatusCode();
-            long total = response.Content.Headers.ContentLength ?? release.Size;
-            await using var src = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-            await using var dst = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16, FileOptions.Asynchronous);
-            var buffer = new byte[1 << 16];
-            var clock = Stopwatch.StartNew();
-            long done = 0, last = -1000;
-            int read;
-            while ((read = await src.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0)
+            using (var response = await _http.GetAsync(release.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false))
             {
-                await dst.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
-                done += read;
-                if (clock.ElapsedMilliseconds - last >= 100)
+                response.EnsureSuccessStatusCode();
+                long total = response.Content.Headers.ContentLength ?? release.Size;
+                await using var src = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+                await using var dst = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16, FileOptions.Asynchronous);
+                var buffer = new byte[1 << 16];
+                var clock = Stopwatch.StartNew();
+                long done = 0, last = -1000;
+                int read;
+                while ((read = await src.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0)
                 {
-                    last = clock.ElapsedMilliseconds;
-                    progress?.Report(new TransferProgress(done, total, 0, 1, release.AssetName, done / Math.Max(clock.Elapsed.TotalSeconds, 0.001)));
+                    await dst.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
+                    done += read;
+                    if (clock.ElapsedMilliseconds - last >= 100)
+                    {
+                        last = clock.ElapsedMilliseconds;
+                        progress?.Report(new TransferProgress(done, total, 0, 1, release.AssetName, done / Math.Max(clock.Elapsed.TotalSeconds, 0.001)));
+                    }
                 }
             }
-        }
 
-        if (release.Sha256Url != null)
-        {
-            string expected = (await _http.GetStringAsync(release.Sha256Url, ct).ConfigureAwait(false)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
-            if (!string.Equals(Hashing.Sha256(partial), expected, StringComparison.OrdinalIgnoreCase))
+            if (release.Sha256Url != null)
             {
-                File.Delete(partial);
-                throw new InvalidDataException("The download is damaged (SHA-256 does not match). Try again.");
+                string expected = (await _http.GetStringAsync(release.Sha256Url, ct).ConfigureAwait(false)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+                if (!string.Equals(Hashing.Sha256(partial), expected, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Delete(partial);
+                    throw new InvalidDataException("The download is damaged (SHA-256 does not match). Try again.");
+                }
             }
+            File.Move(partial, destination, overwrite: true);
         }
-        File.Move(partial, destination, overwrite: true);
+        catch
+        {
+            // A cancelled or failed download leaves nothing half-written behind
+            try { File.Delete(partial); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            throw;
+        }
     }
 
     [GeneratedRegex(@"^OpenSWBF2-(\d+\.\d+\.\d+)-x64\.zip$", RegexOptions.IgnoreCase)]

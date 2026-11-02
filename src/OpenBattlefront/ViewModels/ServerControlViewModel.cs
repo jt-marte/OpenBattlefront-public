@@ -49,6 +49,12 @@ public sealed class ServerControlViewModel : ObservableObject
     private ModUploadClient? _remoteMods;
     private ServerAddress? _remoteAddress;
     private string _remotePassword = "";
+
+    /// <summary>How long a call to a server's mod service may take: its HttpClient has no timeout
+    /// (for downloads), and a stuck service must not hold the polls or the buttons for good.</summary>
+    private static readonly TimeSpan ServiceTimeout = TimeSpan.FromSeconds(20);
+
+    private static CancellationToken ServiceDeadline() => new CancellationTokenSource(ServiceTimeout).Token;
     private bool _keepsSettings;
     private bool _remoteLobby;
     private bool _joining;
@@ -480,7 +486,7 @@ public sealed class ServerControlViewModel : ObservableObject
     private async Task<MapCatalog?> ReadTheirMapsAsync()
     {
         if (_remoteMods == null) return null;
-        try { return await _remoteMods.GetMissionsAsync(CancellationToken.None); }
+        try { return await _remoteMods.GetMissionsAsync(ServiceDeadline()); }
         catch (Exception e) when (e is HttpRequestException or ModServiceException or InvalidDataException or TaskCanceledException) { return null; }
     }
 
@@ -710,7 +716,7 @@ public sealed class ServerControlViewModel : ObservableObject
         if (!IsRemote || _remoteMods == null || !_keepsSettings) return "";
         try
         {
-            ShowSettings(await _remoteMods.SaveSettingsAsync(settings, CancellationToken.None));
+            ShowSettings(await _remoteMods.SaveSettingsAsync(settings, ServiceDeadline()));
             return $" The server keeps {what} for its next starts.";
         }
         catch (Exception e) when (e is HttpRequestException or ModServiceException or InvalidDataException or TaskCanceledException)
@@ -737,7 +743,7 @@ public sealed class ServerControlViewModel : ObservableObject
             return;
         try
         {
-            ShowSettings(await _remoteMods.ResetSettingsAsync(CancellationToken.None));
+            ShowSettings(await _remoteMods.ResetSettingsAsync(ServiceDeadline()));
             _main.ShowNotice("The server goes back to its defaults from its next start.");
         }
         catch (Exception e) when (e is HttpRequestException or ModServiceException or InvalidDataException or TaskCanceledException)
@@ -1046,7 +1052,7 @@ public sealed class ServerControlViewModel : ObservableObject
         try
         {
             if (mods != null) await mods.Watch.StartAsync(CancellationToken.None);
-            else await remote!.StartMatchAsync(CancellationToken.None);
+            else await remote!.StartMatchAsync(ServiceDeadline());
             AddMessage(ChatKind.Admin, waiting > 0
                 ? $"Starting: the games of {Plural(waiting, "player")} waiting in launchers are opening; the match begins once they're in."
                 : "Match started.");
@@ -1338,8 +1344,8 @@ public sealed class ServerControlViewModel : ObservableObject
         if (mods == null) return;
         try
         {
-            _match = await mods.StatusAsync(CancellationToken.None);
-            if (_keepsSettings && _pollCount % 10 == 1) ShowSettings(await mods.GetSettingsAsync(CancellationToken.None) ?? _remoteSettings);
+            _match = await mods.StatusAsync(ServiceDeadline());
+            if (_keepsSettings && _pollCount % 10 == 1) ShowSettings(await mods.GetSettingsAsync(ServiceDeadline()) ?? _remoteSettings);
         }
         catch (Exception e) when (e is HttpRequestException or ModServiceException or InvalidDataException or TaskCanceledException)
         {

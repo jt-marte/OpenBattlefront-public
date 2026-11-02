@@ -37,6 +37,10 @@ public sealed record LobbyRow(string Name, string Detail, bool IsMe, bool InGame
 /// the match starts. A server without the lobby is joined at once.</summary>
 public sealed class MultiplayerViewModel : ObservableObject
 {
+    /// <summary>How long a lobby call may take: the service's HttpClient has no timeout (for
+    /// downloads), and a stuck one must not leave Join waiting for good.</summary>
+    private static readonly TimeSpan ServiceTimeout = TimeSpan.FromSeconds(20);
+
     private static readonly TimeSpan PollEvery = TimeSpan.FromSeconds(2);
     private const int MaxFailures = 15;
 
@@ -200,8 +204,8 @@ public sealed class MultiplayerViewModel : ObservableObject
         // The lobby, for a service that has one
         var lobby = new LobbyClient(_http, server, password);
         bool hasLobby;
-        try { hasLobby = await lobby.JoinAsync(_myName, CancellationToken.None); }
-        catch (Exception e) when (e is HttpRequestException or ModServiceException)
+        try { hasLobby = await lobby.JoinAsync(_myName, new CancellationTokenSource(ServiceTimeout).Token); }
+        catch (Exception e) when (e is HttpRequestException or ModServiceException or TaskCanceledException)
         {
             _main.ShowError(e);
             return;
@@ -229,8 +233,8 @@ public sealed class MultiplayerViewModel : ObservableObject
             await LeaveAsync();
             return;
         }
-        try { await lobby.UpdateAsync(downloading: false, 100, CancellationToken.None); }
-        catch (Exception e) when (e is HttpRequestException or ModServiceException) { }
+        try { await lobby.UpdateAsync(downloading: false, 100, new CancellationTokenSource(ServiceTimeout).Token); }
+        catch (Exception e) when (e is HttpRequestException or ModServiceException or TaskCanceledException) { }
     }
 
     /// <summary>Straight into a server's game, past its launcher lobby: the admin screen's Join as
