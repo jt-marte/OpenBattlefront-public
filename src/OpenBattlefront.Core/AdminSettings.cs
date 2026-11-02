@@ -31,7 +31,11 @@ public sealed class AdminSettings
         Maps = playlist.Select(e => new SavedMap { Mission = e.Mission, Tickets1 = e.Tickets?.Item1, Tickets2 = e.Tickets?.Item2 }).ToList(),
     };
 
-    public static AdminSettings ForOptions(ServerProfile profile) => new() { Options = profile.Options() };
+    /// <summary>The options the server knows (<see cref="ServerProfile.Answers"/>).</summary>
+    public static AdminSettings ForOptions(ServerProfile profile) => new()
+    {
+        Options = profile.Options().Where(o => profile.Answers(o.Key)).ToDictionary(o => o.Key, o => o.Value, StringComparer.OrdinalIgnoreCase),
+    };
 
     /// <summary>The settings that apply when the server's game restarts.</summary>
     public static AdminSettings ForServer(ServerProfile profile, bool lobby) => new()

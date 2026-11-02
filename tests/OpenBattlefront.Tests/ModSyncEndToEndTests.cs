@@ -86,7 +86,7 @@ public class ModSyncEndToEndTests
             var applied = new ServerProfile { Name = "Friday Night", MaxPlayers = 16, TickRate = 120, Difficulty = 4, HeroUnlock = ServerProfile.HeroUnlockTimer, HeroUnlockValue = 90 };
             var settings = await admin.SaveSettingsAsync(AdminSettings.ForOptions(applied), default);
             Assert.Equal(4, settings.Settings.Options!["difficulty"]);
-            Assert.Equal(21, settings.Saved.Count);
+            Assert.Equal(new ServerProfile().Options().Count, settings.Saved.Count);
             settings = await admin.SaveSettingsAsync(AdminSettings.ForPlaylist(new[]
             {
                 new PlaylistEntry { Mission = "kas2g_con", Tickets1 = 150 }, new PlaylistEntry { Mission = "geo1c_con" },

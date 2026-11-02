@@ -8,9 +8,13 @@ public static class ServerReader
     /// setting the server doesn't answer keeps the launcher's default.</summary>
     public static async Task<ServerProfile> ReadAsync(IServerAdmin admin, CancellationToken ct = default)
     {
-        var profile = new ServerProfile();
+        var profile = new ServerProfile { AnsweredOptions = new(StringComparer.OrdinalIgnoreCase) };
         foreach (string command in profile.Options().Keys)
-            if (await admin.ReadOptionAsync(command, ct).ConfigureAwait(false) is int value) profile.SetOption(command, value);
+            if (await admin.ReadOptionAsync(command, ct).ConfigureAwait(false) is int value)
+            {
+                profile.SetOption(command, value);
+                profile.AnsweredOptions.Add(command);
+            }
         if (await admin.ReadTextAsync("gamename", ct).ConfigureAwait(false) is { Length: > 0 } name) profile.Name = name;
         if (await admin.ReadOptionAsync("playerlimit", ct).ConfigureAwait(false) is int limit) profile.MaxPlayers = limit;
         if (await admin.ReadOptionAsync("tps", ct).ConfigureAwait(false) is int tick) profile.TickRate = tick;

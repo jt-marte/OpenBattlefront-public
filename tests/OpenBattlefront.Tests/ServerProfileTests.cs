@@ -13,7 +13,7 @@ public class ServerProfileTests
         var sent = new ServerProfile
         {
             Difficulty = 4, ConquestBots = 7, CtfBots = 12, AssaultBots = 40, TeamDamage = false, ShowNames = false, AutoAssignTeams = false, Awards = false,
-            Heroes = false, HeroUnlock = ServerProfile.HeroUnlockTimer, HeroUnlockValue = 45, HeroPlayer = ServerProfile.HeroPlayerRandom,
+            Heroes = false, HeroUnlock = ServerProfile.HeroUnlockTimer, HeroUnlockValue = 45, HeroPlayer = ServerProfile.HeroPlayerRandom, HeroRespawnValue = 250,
             AiHeroes = false, ConquestReinforcements = 300, ConquestTimeLimit = 20, CtfCaptures = 9, CtfTimeLimit = 15,
             HuntTimeLimit = 10, HuntScore = 120, AssaultScore = 250,
         };
@@ -21,7 +21,7 @@ public class ServerProfileTests
         foreach (var (command, value) in sent.Options()) read.SetOption(command, value);
         read.Normalize();
         Assert.Equal(sent.Options(), read.Options());
-        Assert.Equal(21, sent.Options().Count);
+        Assert.Equal(22, sent.Options().Count);
         Assert.False(read.SetOption("bots", 3));
     }
 
@@ -46,6 +46,38 @@ public class ServerProfileTests
         Assert.Equal(("Box", "", 16, 30, 2, 4), (profile.Name, profile.JoinPassword, profile.MaxPlayers, profile.TickRate, profile.Difficulty, profile.ConquestBots));
         Assert.Equal("nab2c_con 5 5", profile.Playlist.Single().ToArgument());
         Assert.Throws<InvalidDataException>(() => AdminSettingsReply.Parse("""{"schema": 2}"""));
+    }
+
+    [Fact]
+    public void Hero_timers_go_to_five_minutes_and_respawn_can_be_never()
+    {
+        var profile = new ServerProfile { HeroUnlock = ServerProfile.HeroUnlockTimer, HeroUnlockValue = 300, HeroRespawnValue = -1 };
+        profile.Normalize();
+        Assert.Equal((300, -1), (profile.HeroUnlockValue, profile.HeroRespawnValue));
+        Assert.Contains("/hrunlockvalue 300", profile.SettingsLines());
+        Assert.Contains("/hrrespawnvalue -1", profile.SettingsLines());
+
+        profile.HeroUnlockValue = 301;
+        profile.HeroRespawnValue = 999;
+        profile.Normalize();
+        Assert.Equal((300, 300), (profile.HeroUnlockValue, profile.HeroRespawnValue));
+        profile.HeroRespawnValue = -5;
+        profile.Normalize();
+        Assert.Equal(-1, profile.HeroRespawnValue);
+        // the game's own default
+        Assert.Equal(120, new ServerProfile().HeroRespawnValue);
+    }
+
+    [Fact]
+    public void An_older_server_gets_only_the_options_it_answered()
+    {
+        var profile = new ServerProfile { AnsweredOptions = new(StringComparer.OrdinalIgnoreCase) { "difficulty", "HRUNLOCKVALUE" } };
+        Assert.True(profile.Answers("hrunlockvalue"));
+        Assert.False(profile.Answers("hrrespawnvalue"));
+        Assert.Equal(new[] { "difficulty", "hrunlockvalue" }, AdminSettings.ForOptions(profile).Options!.Keys.Order());
+        // a server this launcher runs gets them all
+        Assert.Equal(new ServerProfile().Options().Count, AdminSettings.ForOptions(new ServerProfile()).Options!.Count);
+        Assert.Same(profile.AnsweredOptions, profile.Clone().AnsweredOptions);
     }
 
     [Fact]

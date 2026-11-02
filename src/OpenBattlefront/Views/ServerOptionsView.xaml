@@ -423,6 +423,29 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Hero respawn" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="How long after a hero dies one can be taken again: seconds (0-300, 0 right away), or never." Style="{StaticResource RowNote}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Style="{StaticResource SegmentBox}">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Style="{StaticResource Segment}" Content="Timer"
+                                                 IsChecked="{Binding HeroRespawn, Converter={StaticResource Eq}, ConverterParameter=timer}" />
+                                    <RadioButton Style="{StaticResource Segment}" Content="Never"
+                                                 IsChecked="{Binding HeroRespawn, Converter={StaticResource Eq}, ConverterParameter=never}" />
+                                </StackPanel>
+                            </Border>
+                            <TextBox Style="{StaticResource Number}" Width="56" Margin="10,0,0,0" IsEnabled="{Binding HeroRespawnTimed}"
+                                     Text="{Binding HeroRespawnSeconds, UpdateSourceTrigger=LostFocus}" />
+                        </StackPanel>
+                    </Grid>
+                    <Rectangle Style="{StaticResource Divider}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="AI heroes" Style="{StaticResource RowTitle}" />
                             <TextBlock Text="A bot takes the hero when no player has for 30 seconds, or every player turned it down." Style="{StaticResource RowNote}" />
                         </StackPanel>
